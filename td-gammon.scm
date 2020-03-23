@@ -28,6 +28,17 @@
     (format #t "---------------------------------~%")
     (format #t " inputs: ~a~%" (set-bg-input bgb vxi #t))
 
+    (let* ((d1 (1+ (truncate (random 6))))
+           (d2 (1+ (truncate (random 6))))
+           (bg-states (bg-find-all-states bgb d1 d2 #t)))
+      (format #t "bg-states: ~s~%"
+              (map (lambda (x)
+                     (if (bg? x)
+                         "bg"
+                         x))
+                   bg-states))
+      )
+
     (net-run net vxi)
     (format #t " output: ~a~%" (cadddr net))
     ))
