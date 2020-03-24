@@ -1,3 +1,9 @@
+(import (ice-9 format))
+
+(define (indent x)
+  (do ((i 0 (1+ i)))
+      ((>= i x))
+    (format #t " ")))
 
 (define-record-type <bg>
   (make-bg)
@@ -35,9 +41,16 @@
     (set-bg-b-bar! dst (bg-b-bar src))
     (set-bg-w-rem! dst (bg-w-rem src))
     (set-bg-b-rem! dst (bg-b-rem src))
-    ; FIX copy array elements!!!
-    (set-bg-w-pts! dst (bg-w-pts src))
-    (set-bg-b-pts! dst (bg-b-pts src))
+    (set-bg-w-pts! dst (make-array 0 24))
+    (set-bg-b-pts! dst (make-array 0 24))
+    (let ((wsrc (bg-w-pts src))
+          (bsrc (bg-b-pts src))
+          (wdst (bg-w-pts dst))
+          (bdst (bg-b-pts dst)))
+      (do ((i 0 (1+ i)))
+          ((>= i 24))
+        (array-set! wdst (array-ref wsrc i) i)
+        (array-set! bdst (array-ref bsrc i) i)))
     dst))
 
 (define (set-bg-input-pts arr vxi off)
@@ -62,6 +75,28 @@
           (set! arr brr)
           (set! brr tmp)))
     (list arr brr)))
+
+(define (bg-print-board bg)
+  (match (pts-ply bg #t)
+    ((arr brr)
+     (do ((p 0 (1+ p)))
+         ((>= p 24))
+       (format #t "~2d  " p))
+     (format #t "~%")
+     (do ((p 0 (1+ p)))
+         ((>= p 24))
+       (let ((apcs (array-ref arr p)))
+         (if (> apcs 0)
+           (format #t "~2d  " apcs)
+           (format #t "    "))))
+     (format #t "~%")
+     (do ((p 0 (1+ p)))
+         ((>= p 24))
+       (let ((bpcs (array-ref brr p)))
+         (if (> bpcs 0)
+             (format #t "~2d  " bpcs)
+             (format #t "    "))))
+     (format #t "~%"))))
 
 ; input features as specified by Tesauro's td-gammon
 (define (set-bg-input bg vxi ply)
@@ -128,13 +163,25 @@
                (set-bg-w-bar! bg (1+ (bg-w-bar bg)))))))))))
   bg)
 
-(define (bg-fold-states bg arr brr ply dices)
+
+; returns a list of paths
+(define (bg-fold-states path bg ply dices)
+  (match (pts-ply bg ply)
+    ((arr brr)
+  ;(indent (* 2 in))
+  ;(format #t "  bg-fold-states dices=~s~%" dices)
   ; scan all possible moves in 'arr' using dices d1 and d2
   (let ((dir (if ply -1 1))) ; white moves towards 0, black towards 24
     (cond
-     ((= (length (cdr dices)) 0) '())
+     ; no more dices to evaluate moves
+     ((= (length dices) 0)
+       ;(indent (* 2 (length path)))
+       ;(format #t "    no more dice ~s~%" dices)
+      (list (append (list bg) path))) ; we return a list of paths
+     ; ply has pieces on bar, must move them first
      ((> (if ply (bg-w-bar bg) (bg-b-bar bg)) 0)
-      ; ply has pieces on bar, move in them first
+      (indent (* 2 (length path)))
+      (format #t "    bar-move~s~%")
       (let ((d (car dices)))
         (cond
          ; position is possible to move in to
@@ -142,48 +189,45 @@
           (let ((nbg (copy-bg bg)))
             (cond
              (ply
-              (set-bg-w-bar! nbg (1- (bg-w-bar! nbg)))
-              (array-set! (bg-w-pts nbg)
+              (set-bg-w-bar! nbg (1- (bg-w-bar! nbg))) ; remove piece from bar
+              (array-set! (bg-w-pts nbg) ; put piece on the board
                           (1+ (bg-w-pts nbg))))
              (else
               (set-bg-b-bar! nbg (1- (bg-b-bar! nbg)))
               (array-set! (bg-b-pts nbg)
                           (1+ (bg-b-pts nbg)))))
-            (list nbg (bg-fold-states bg arr brr ply (cdr dices)))))
+            (let ((act (list 'bar d)))
+              (bg-fold-states (append path (list act)) nbg ply (cdr dices)))))
          (else ; position is occupied
-          (if (> (length (cdr dices)) 0)
-              (bg-fold-states bg arr brr ply (cdr dices))
-              '())))))
+          (bg-fold-states path bg ply (cdr dices))))))
      (else
-      (let ((states '()))
+      (let ((paths '()))
         (do ((p 0 (1+ p)))
             ((>= p 24))
-          (do ((dice dices (cdr dice)))
-              ((eq? dice '()))
-            (let* ((d (car dice))
-                   (pcs (array-ref arr p)))
-              (if (> pcs 0)
-                  (let* ((newpos (+ p (* d dir)))
-                         (newpcs (1- pcs))
-                         (bpcs (array-ref brr newpcs)))
-                    ; validate move
-                    (if (or (> newpos 23) ; piece has moved outside the board
-                            (< newpos 0)
-                            (< bpcs 2)) ; max one opponent piece
-                        (begin
-                          (format #t "  ~a: ~a , ~a, ~a~%" p pcs newpos newpcs)
-                          (set! states
-                                (append states
-                                        (list (bg-apply-move (copy-bg bg) p newpos newpcs ply)
-                                              (bg-fold-states bg arr brr ply (cdr dices))))))))))))
-        states)))))
+          (let ((pcs (array-ref arr p)))
+            (if (> pcs 0) ; point carries a piece
+                (let* ((newpos (+ p (* (car dices) dir)))
+                       (newpcs (1- pcs)))
+                  ;(indent (* 2 (length path))
+                  ;(format #t "    consider p=~a pcs=~a dices=~s newpos=~a~%" p pcs dices newpos)
+                  ; validate move
+                  (if (or (> newpos 23) ; piece has moved outside the board
+                          (< newpos 0)
+                          (< (array-ref brr newpos) 2)) ; max one opponent piece
+                      (let ((nbg (bg-apply-move (copy-bg bg) p newpos newpcs ply)))
+                        (indent (* 2 (length path)))
+                        (format #t "    feasible move p=~a pcs=~a  newpos=~a newpcs=~a~%" p pcs newpos newpcs)
+                        (let ((act (list 'mov p newpos newpcs)))
+                          (set! paths
+                                (append paths
+                                        (bg-fold-states (append path (list act)) nbg ply (cdr dices)))))))))))
+      paths)))))))
 
+; d1 must be >= d2
 (define (bg-find-all-states bg d1 d2 ply)
   (format #t "find-all-states white: ~a dice: [~a,~a]~%" ply d1 d2)
-  (match (pts-ply bg ply)
-    ((arr brr)
-     ; scan all possible moves in 'arr' using dices d1 and d2
-     (bg-fold-states bg arr brr ply
-                     (if (= d1 d2)
-                         (list d1 d1 d1 d1)
-                         (list d1 d2))))))
+  ; scan all possible moves in 'arr' using dices d1 and d2
+  (bg-fold-states '() bg ply
+                  (if (= d1 d2)
+                      (list d1 d1 d1 d1)
+                      (list d1 d2))))

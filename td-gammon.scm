@@ -1,6 +1,7 @@
 
 (import (srfi srfi-1) (ice-9 match) (srfi srfi-8) (srfi srfi-9))
 (import (ffi cblas))
+(load "common-lisp.scm")
 (load "mat.scm")
 (load "backgammon.scm")
 
@@ -26,21 +27,25 @@
          (net (make-net))
          (vxi (make-typed-array 'f32 *unspecified* 198)))
     (format #t "---------------------------------~%")
-    (format #t " inputs: ~a~%" (set-bg-input bgb vxi #t))
 
-    (let* ((d1 (1+ (truncate (random 6))))
-           (d2 (1+ (truncate (random 6))))
-           (bg-states (bg-find-all-states bgb d1 d2 #t)))
-      (format #t "bg-states: ~s~%"
-              (map (lambda (x)
-                     (if (bg? x)
-                         "bg"
-                         x))
-                   bg-states))
-      )
-
-    (net-run net vxi)
-    (format #t " output: ~a~%" (cadddr net))
-    ))
+    (let* ((d1 (1+ (truncate (random 6 randstate))))
+           (d2 (1+ (truncate (random 6 randstate))))
+           (x (bg-print-board bgb))
+           (bg-paths (bg-find-all-states bgb
+                                         6 ;(if (> d1 d2) d1 d2)
+                                         4 ;(if (> d2 d1) d1 d2)
+                                         #t)))
+      ;-------------
+      ; take the state-tree and compile a feasible-state-list
+      (format #t "number of paths: ~s~%" (length bg-paths))
+      ; evaluate each path
+      (loop-for path in bg-paths do
+        (format #t "  path: ~s~%" path)
+        (let ((bg (car path)))
+          (format #t " inputs: ~a~%" (set-bg-input bg vxi #t))
+          (net-run net vxi)
+          (format #t " output: ~a~%" (cadddr net))))
+      ;-------------
+      #f)))
 
 (main)
