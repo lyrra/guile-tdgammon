@@ -223,11 +223,13 @@
                                         (bg-fold-states (append path (list act)) nbg ply (cdr dices)))))))))))
       paths)))))))
 
-; d1 must be >= d2
-(define (bg-find-all-states bg d1 d2 ply)
-  (format #t "find-all-states white: ~a dice: [~a,~a]~%" ply d1 d2)
-  ; scan all possible moves in 'arr' using dices d1 and d2
-  (bg-fold-states '() bg ply
-                  (if (= d1 d2)
-                      (list d1 d1 d1 d1)
-                      (list d1 d2))))
+(define (bg-find-all-states bg dices ply)
+  (let ((d1 (car dices))
+        (d2 (cadr dices)))
+    (format #t "find-all-states white: ~a dice: [~a,~a]~%" ply d1 d2)
+    ; scan all possible moves in 'arr' using dices d1 and d2
+    (bg-fold-states '() bg ply
+                    (cond
+                     ((> d2 d1) (list d2 d1)) ; d1 must be >= d2
+                     ((= d2 d1) (list d1 d1 d1 d1))
+                     (else (list d1 d2))))))
