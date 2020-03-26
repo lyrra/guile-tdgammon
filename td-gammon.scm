@@ -1,10 +1,4 @@
 
-(import (srfi srfi-1) (ice-9 match) (srfi srfi-8) (srfi srfi-9))
-(import (ffi cblas))
-(load "common-lisp.scm")
-(load "mat.scm")
-(load "backgammon.scm")
-
 (define (make-net)
   (let ((mhw (rand-m! (make-typed-array 'f32 *unspecified* 40 198)))
         (vho (rand-v! (make-typed-array 'f32 *unspecified* 40)))
@@ -220,13 +214,3 @@
                (array-map! wvyo (lambda (x) x) wout)
                )))))))))
 
-(define (main)
-  (init-rand)
-  (set! *rands* (seed->random-state (current-time)))
-  (let* ((wnet (make-net))
-         (bnet (make-net)))
-    (format #t "---------------------------------~%")
-    (run-tdgammon wnet bnet)
-    ))
-
-(main)

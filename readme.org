@@ -1,3 +1,9 @@
 * td-gammon
+
+  | cp env.sh my-env.sh
+  | edit my-env.sh # point out your blas-library
+  | ENVFILE=./my-env.sh ./run.sh
+
 ** links
    - http://incompleteideas.net/book/first/ebook/node108.html
+
