@@ -166,6 +166,8 @@
 
 ; returns a list of paths
 (define (bg-fold-states path bg ply dices)
+  ;(let ((rr (random 9999)))
+  ;(format #t "    ~a-- bg-fold-states -- paths:~s dices=~s ~%" rr (length path) dices)
   (match (pts-ply bg ply)
     ((arr brr)
   ;(indent (* 2 in))
@@ -177,11 +179,12 @@
      ((= (length dices) 0)
        ;(indent (* 2 (length path)))
        ;(format #t "    no more dice ~s~%" dices)
+      ;(format #t "       ~a-- no-dices! --~%" rr)
       (list (append (list bg) path))) ; we return a list of paths
      ; ply has pieces on bar, must move them first
      ((> (if ply (bg-w-bar bg) (bg-b-bar bg)) 0)
       (indent (* 2 (length path)))
-      (format #t "    bar-move~s~%")
+      ;(format #t "    ~a-- bar-move~s~%" rr)
       (let ((d (car dices)))
         (cond
          ; position is possible to move in to
@@ -201,6 +204,7 @@
          (else ; position is occupied
           (bg-fold-states path bg ply (cdr dices))))))
      (else
+      ;(format #t "      ~a-- else-move --~%" rr)
       (let ((paths '()))
         (do ((p 0 (1+ p)))
             ((>= p 24))
@@ -208,20 +212,28 @@
             (if (> pcs 0) ; point carries a piece
                 (let* ((newpos (+ p (* (car dices) dir)))
                        (newpcs (1- pcs)))
+                  ;(format #t "        ~a-- do: ~a, pcs: ~a dices:~s (mov-pos ~a to ~a)~%" rr p pcs dices p newpos)
                   ;(indent (* 2 (length path))
                   ;(format #t "    consider p=~a pcs=~a dices=~s newpos=~a~%" p pcs dices newpos)
                   ; validate move
-                  (if (or (> newpos 23) ; piece has moved outside the board
-                          (< newpos 0)
+                  (if (or (< newpos 0) ; piece has moved outside of board
+                          (> newpos 23) ; piece has moved outside of board
+                          ; if piece lands on board, it mustn't be occupied
                           (< (array-ref brr newpos) 2)) ; max one opponent piece
-                      (let ((nbg (bg-apply-move (copy-bg bg) p newpos newpcs ply)))
+                    (let ((nbg (bg-apply-move (copy-bg bg) p newpos newpcs ply)))
+                      (let ((act (list 'mov p newpos newpcs)))
                         (indent (* 2 (length path)))
-                        (format #t "    feasible move p=~a pcs=~a  newpos=~a newpcs=~a~%" p pcs newpos newpcs)
-                        (let ((act (list 'mov p newpos newpcs)))
-                          (set! paths
-                                (append paths
-                                        (bg-fold-states (append path (list act)) nbg ply (cdr dices)))))))))))
-      paths)))))))
+                        ;(format #t "    ~a-- nop=~a feasible move act=~s dices=~s~%" rr (length path) act dices)
+                        (set! paths
+                              (append paths
+                                      (bg-fold-states (append path (list act)) nbg ply (cdr dices))))
+                        ;(format #t "    ~a-- new paths is: ~s~%" rr paths)
+                        )))))))
+        ;(format #t "  ~a-- paths: ~s~%" rr paths)
+        ;(if (> (length paths) 0) (format #t "    ~a-- found paths: ~s~%" rr paths))
+        (append path paths)))))))
+  ;)
+  )
 
 (define (bg-find-all-states bg dices ply)
   (let ((d1 (car dices))
