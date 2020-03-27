@@ -48,7 +48,7 @@
                    (array-set! myw (+ (array-ref myw i j) (* alpha o g)) i j)
                    ; populate gradient
                    (array-set! go (+ (array-ref go i) (* g w)) i)
-                   ; each of the 40 neurons (i) in hidden layer, is connected to both neurons at output layer 
+                   ; each of the 40 neurons (i) in hidden layer, is connected to both neurons at output layer
                    ; therefore foreach neuron, we sum the gradient coming from the two neurons below
                    ))))))
        (sigmoid go)
@@ -79,13 +79,14 @@
         (d2 (1+ (truncate (random 6 *rands*)))))
     (list d1 d2)))
 
+; FIX: need ply to decide what path to follow
 (define (best-path paths net)
   (let ((bout -999)
         (bpath #f)
         (vxi (make-typed-array 'f32 *unspecified* 198)))
     (loop-for path in paths do
       ;(format #t "  path: ~s~%" path)
-      (let ((bg (car path)))
+      (let ((bg path))
         (set-bg-input bg vxi #t)
         (net-run net vxi)
         (let ((out (cadddr net)))
@@ -158,7 +159,7 @@
              ; since we have no moves to consider/evaluate, we just yield to the other player
              (format #t "  player (~a) cant move!~%" (bg-ply bg)))
             ((vxi best-out best-path)
-             (let ((bg2 (car best-path))  ; FIX: as of now, we've got the new-state in path
+             (let ((bg2 best-path)  ; FIX: as of now, we've got the new-state in path
                    (reward 0.)
                    (wout (cadddr wnet)))
                (format #t "  best-out: ~s~%" best-out)
@@ -213,4 +214,3 @@
                ; caches
                (array-map! wvyo (lambda (x) x) wout)
                )))))))))
-

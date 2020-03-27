@@ -177,10 +177,10 @@
     (cond
      ; no more dices to evaluate moves
      ((= (length dices) 0)
-       ;(indent (* 2 (length path)))
-       ;(format #t "    no more dice ~s~%" dices)
+      ;(indent (* 2 (length path)))
+      ;(format #t "    no more dice ~s~%" dices)
       ;(format #t "       ~a-- no-dices! --~%" rr)
-      (list (append (list bg) path))) ; we return a list of paths
+      (list bg)) ; we return a list of paths
      ; ply has pieces on bar, must move them first
      ((> (if ply (bg-w-bar bg) (bg-b-bar bg)) 0)
       (indent (* 2 (length path)))
@@ -199,10 +199,11 @@
               (set-bg-b-bar! nbg (1- (bg-b-bar! nbg)))
               (array-set! (bg-b-pts nbg)
                           (1+ (bg-b-pts nbg)))))
-            (let ((act (list 'bar d)))
-              (bg-fold-states (append path (list act)) nbg ply (cdr dices)))))
+              (bg-fold-states path nbg ply (cdr dices))))
          (else ; position is occupied
-          (bg-fold-states path bg ply (cdr dices))))))
+          (if (eq? '() (cdr dices))
+            '() ; no more dices, don't include this state
+            (bg-fold-states path bg ply (cdr dices)))))))
      (else
       ;(format #t "      ~a-- else-move --~%" rr)
       (let ((paths '()))
@@ -221,19 +222,16 @@
                           ; if piece lands on board, it mustn't be occupied
                           (< (array-ref brr newpos) 2)) ; max one opponent piece
                     (let ((nbg (bg-apply-move (copy-bg bg) p newpos newpcs ply)))
-                      (let ((act (list 'mov p newpos newpcs)))
-                        (indent (* 2 (length path)))
-                        ;(format #t "    ~a-- nop=~a feasible move act=~s dices=~s~%" rr (length path) act dices)
-                        (set! paths
-                              (append paths
-                                      (bg-fold-states (append path (list act)) nbg ply (cdr dices))))
-                        ;(format #t "    ~a-- new paths is: ~s~%" rr paths)
-                        )))))))
+                      (indent (* 2 (length path)))
+                      ;(format #t "    ~a-- nop=~a feasible move act=~s dices=~s~%" rr (length path) act dices)
+                      (set! paths
+                            (append paths
+                                    (bg-fold-states path nbg ply (cdr dices))))
+                      ;(format #t "    ~a-- new paths is: ~s~%" rr paths)
+                      ))))))
         ;(format #t "  ~a-- paths: ~s~%" rr paths)
         ;(if (> (length paths) 0) (format #t "    ~a-- found paths: ~s~%" rr paths))
-        (append path paths)))))))
-  ;)
-  )
+        paths)))))))
 
 (define (bg-find-all-states bg dices ply)
   (let ((d1 (car dices))
