@@ -111,6 +111,54 @@
   (array-map! dst (lambda (v) (* v sc))
               vec))
 
+(define (get-reward bg)
+  ; we can make a move, see if the move has put us in an terminal position
+  (cond
+    ; Until s' is terminal (bg2 is part of s')
+    ((or (= (bg-w-rem bg) 15) ; white has won
+         (= (bg-b-rem bg) 15)) ; black has won
+     (let ((ply (bg-ply bg))) ; who's turn it was, and receives the reward
+       ; in terminal state, we get a reward of 1
+       (list 1. #t)))
+    (else
+     (list 0. #f))))
+
+(define (run-tderr vxi wnet tderr wvyo wout wgrad welig reward gamma gamma-lambda)
+  (let ()
+    ;---------------------------------------------
+    ; tderr <- r + gamma * V(s') - V(s)
+    ;   V(s) is previous output (wvyo/bvyo), and V(s') is wnet's output-layer
+    ; gamma * V(s') - V(s)
+    (format #t "  calculate tderr~%")
+    (svvs*! tderr wvyo gamma)
+    (sv-! tderr tderr wout)
+    ; add reward
+    (format #t "  add reward~%")
+    (array-map! tderr (lambda (x) (+ x reward)) tderr)
+
+    (format #t "  get gradient~%")
+    ; calculate gradient GRAD(weight, output)
+    (set-sigmoid-gradient! wgrad wout)
+
+    (format #t "  update eligibily traces~%")
+    ;---------------------------------------------
+    ; update eligibility traces
+    ; elig  <- gamma_lambda * e + Grad_theta(V(s))
+    (array-map! welig (lambda (e g)
+                        (+ (* gamma-lambda e) g))
+                welig wgrad)
+    (format #t "  do gradient-descent~%")
+    ;---------------------------------------------
+    ; update network weights
+    ; theta <- theta + alpha * tderr * elig
+    (gradient-descent vxi
+                      wnet (array-map! tderr (lambda (a b) (* a b))
+                                       tderr welig)
+                      wgrad ; since we already has the gradient calculated
+                            ; FIX: do we do this trick in CL version?
+                      0.2)
+    (format #t "  DONE gradient-descent~%")))
+
 (define (run-tdgammon wnet bnet)
   ; initialize theta, given by parameters wnet and bnet
   (let ((gamma 0.9) ; td-gamma
@@ -118,12 +166,6 @@
         (bg (setup-bg))
         (dices (roll-dices))
         ; eligibility-traces
-        #|
-        (welig (list (make-typed-array 'f32 *unspecified* 40 198)
-                     (make-typed-array 'f32 *unspecified* 2 40)))
-        (belig (list (make-typed-array 'f32 *unspecified* 40 198)
-                     (make-typed-array 'f32 *unspecified* 2 40)))
-        |#
         (welig (make-typed-array 'f32 *unspecified* 2))
         (belig (make-typed-array 'f32 *unspecified* 2))
         (terminal-state #f))
@@ -164,53 +206,14 @@
                    (wout (cadddr wnet)))
                (format #t "  best-out: ~s~%" best-out)
                (format #t "  best-path: ~s~%" best-path)
-               ; we can make a move, see if the move has put us in an terminal position
-               (cond
-                 ; Until s' is terminal (bg2 is part of s')
-                 ((or (= (bg-w-rem bg2) 15) ; white has won
-                      (= (bg-b-rem bg2) 15)) ; black has won
-                  (let ((ply (bg-ply bg2))) ; who's turn it was, and receives the reward
-                    (set reward 1.) ; in terminal state, we get a reward of 1
-                    (set! terminal-state #t))))
-
-               ;---------------------------------------------
-               ; tderr <- r + gamma * V(s') - V(s)
-               ;   V(s) is previous output (wvyo/bvyo), and V(s') is wnet's output-layer
-               ; gamma * V(s') - V(s)
-               (format #t "  calculate tderr~%")
-               (svvs*! tderr wvyo gamma)
-               (sv-! tderr tderr wout)
-               ; add reward
-               (format #t "  add reward~%")
-               (array-map! tderr (lambda (x) (+ x reward)) tderr)
-
-               (format #t "  get gradient~%")
-               ; calculate gradient GRAD(weight, output)
-               (set-sigmoid-gradient! wgrad wout)
-
-               (format #t "  update eligibily traces~%")
-               ;---------------------------------------------
-               ; update eligibility traces
-               ; elig  <- gamma_lambda * e + Grad_theta(V(s))
-               (array-map! welig (lambda (e g)
-                                   (+ (* gamma-lambda e) g))
-                           welig wgrad)
-               (format #t "  do gradient-descent~%")
-               ;---------------------------------------------
-               ; update network weights
-               ; theta <- theta + alpha * tderr * elig
-               (gradient-descent vxi
-                                 wnet (array-map! tderr (lambda (a b) (* a b))
-                                                  tderr welig)
-                                 wgrad ; since we already has the gradient calculated
-                                       ; FIX: do we do this trick in CL version?
-                                 0.2)
-               (format #t "  DONE gradient-descent~%")
-               ;---------------------------------------------
-               ; evolve state
-               ; s <- s'
-               (set! bg bg2)
-               (set! dices (roll-dices))
-               ; caches
-               (array-map! wvyo (lambda (x) x) wout)
-               )))))))))
+               (match (get-reward bg2)
+                 ((reward terminal-state)
+                  (run-tderr vxi wnet tderr wvyo wout wgrad welig reward gamma gamma-lambda)
+                  ;---------------------------------------------
+                  ; evolve state
+                  ; s <- s'
+                  (set! bg bg2)
+                  (set! dices (roll-dices))
+                  ; caches
+                  (array-map! wvyo (lambda (x) x) wout)
+                  )))))))))))
