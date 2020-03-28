@@ -159,6 +159,28 @@
                       0.2)
     (format #t "  DONE gradient-descent~%")))
 
+(define (run-turn bg net dices tderr vyo grad elig gamma gamma-lambda)
+  (let ((ply (bg-ply bg)))
+    (match (policy-take-action bg net dices)
+      (#f ; player can't move (example is all pieces are on the bar)
+       ; since we have no moves to consider/evaluate, we just yield to the other player
+       (format #t "  player (~a) cant move!~%" (bg-ply bg))
+       #f)
+      ((vxi best-out best-path)
+       (let ((bg2 best-path)  ; FIX: as of now, we've got the new-state in path
+             (nout (cadddr net)))
+         (format #t "  best-out: ~s~%" best-out)
+         (format #t "  best-path: ~s~%" best-path)
+         (match (get-reward bg2)
+           ((reward terminal-state)
+            (run-tderr vxi net tderr vyo nout grad elig reward gamma gamma-lambda)
+            ; caches
+            (array-map! vyo (lambda (x) x) nout)
+            ;---------------------------------------------
+            ; evolve state
+            ; s <- s'
+            (list bg2 (roll-dices)))))))))
+
 (define (run-tdgammon wnet bnet)
   ; initialize theta, given by parameters wnet and bnet
   (let ((gamma 0.9) ; td-gamma
@@ -188,32 +210,23 @@
       ; Repeat for each step in episode:
       (do ((step 0 (1+ step)))
           (terminal-state)
-        (let ()
-          (format #t "  ~a.~a: dices: ~s white-turn: ~a~%" episode step dices (bg-ply bg))
+        (let ((ply (bg-ply bg)))
+          (format #t "  ~a.~a: dices: ~s w/b-turn: ~a~%" episode step dices (bg-ply bg))
           (bg-print-board bg)
           ; a <- pi(s)  ; set a to action given by policy for s
           ; Take action a, observe r and next state s'
           ;     new state, s', consists of bg2 and new dice-roll
           ;     s =  { bg, dices }
           ;     s' = { best-bg, new-dice-roll }
-          (match (policy-take-action bg wnet dices)
-            (#f ; player can't move (example is all pieces are on the bar)
-             ; since we have no moves to consider/evaluate, we just yield to the other player
-             (format #t "  player (~a) cant move!~%" (bg-ply bg)))
-            ((vxi best-out best-path)
-             (let ((bg2 best-path)  ; FIX: as of now, we've got the new-state in path
-                   (reward 0.)
-                   (wout (cadddr wnet)))
-               (format #t "  best-out: ~s~%" best-out)
-               (format #t "  best-path: ~s~%" best-path)
-               (match (get-reward bg2)
-                 ((reward terminal-state)
-                  (run-tderr vxi wnet tderr wvyo wout wgrad welig reward gamma gamma-lambda)
-                  ;---------------------------------------------
-                  ; evolve state
-                  ; s <- s'
-                  (set! bg bg2)
-                  (set! dices (roll-dices))
-                  ; caches
-                  (array-map! wvyo (lambda (x) x) wout)
-                  )))))))))))
+          (match (run-turn bg (if ply wnet bnet)
+                           dices tderr
+                           (if ply wvyo bvyo)
+                           (if ply wgrad bgrad)
+                           (if ply welig belig)
+                           gamma gamma-lambda)
+            ((new-bg new-dices)
+             (set! bg new-bg)
+             (set! dices new-dices))
+            (#f ; cant move
+             'ok
+             ))))))))
