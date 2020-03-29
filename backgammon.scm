@@ -89,13 +89,14 @@
          (if (> apcs 0)
            (format #t "~2d  " apcs)
            (format #t "    "))))
-     (format #t "~%")
+     (format #t "[b:~a, r:~a]~%" (bg-w-bar bg) (bg-w-rem bg))
      (do ((p 0 (1+ p)))
          ((>= p 24))
        (let ((bpcs (array-ref brr p)))
          (if (> bpcs 0)
              (format #t "~2d  " bpcs)
              (format #t "    "))))
+     (format #t "[b:~a, r:~a]~%" (bg-b-bar bg) (bg-b-rem bg))
      (format #t "~%"))))
 
 ; input features as specified by Tesauro's td-gammon
@@ -129,83 +130,65 @@
 (define (bg-apply-move bg oldpos newpos newpcs ply)
   (match (pts-ply bg ply)
     ((arr brr)
+     ; remove A-piece from old-position
+     (array-set! arr (1- (array-ref arr oldpos)) oldpos)
      (cond
-      (ply
-       ; remove A-piece from old-position
-       (array-set! arr (1- (array-ref arr oldpos)) oldpos)
-       (cond
-        ((or (< newpos 0)
-             (> newpos 23))
-         ; A-piece moved out of board
-         (set-bg-w-rem! bg (1+ (bg-w-rem bg))))
-        (else ; A-piece has landed on new position on board
-         (array-set! arr (1+ (array-ref arr newpos)) newpos)
-         ; knock out B-piece
-         (if (= (array-ref brr newpos) 1)
-             (begin
-               (array-set! brr 0 newpos)
-               (set-bg-b-bar! bg (1+ (bg-b-bar bg)))
-               )))))
-      (else
-       ; remove B-piece from old-position
-       (array-set! brr (1- (array-ref brr oldpos)) oldpos)
-       (cond
-        ((or (< newpos 0)
-             (> newpos 23))
-         ; B-piece moved out of board
-         (set-bg-b-rem! bg (1+ (bg-b-rem bg))))
-        (else ; B-piece has landed on new position on board
-         (array-set! brr (1+ (array-ref brr newpos)) newpos)
-         ; knock out A-piece
-         (if (= (array-ref arr newpos) 1)
-             (begin
-               (array-set! arr 0 newpos)
-               (set-bg-w-bar! bg (1+ (bg-w-bar bg)))))))))))
+      ((or (< newpos 0)
+           (> newpos 23))
+       ;(format #t "move outside ~a~%" (if ply "w" "b"))
+       ; A-piece moved out of board
+       (if ply
+           (set-bg-w-rem! bg (1+ (bg-w-rem bg)))
+           (set-bg-b-rem! bg (1+ (bg-b-rem bg)))))
+      (else ; A-piece has landed on new position on board
+       ;(format #t "move inside board ~a ~a->~a~%" (if ply "w" "b") oldpos newpos)
+       (array-set! arr (1+ (array-ref arr newpos)) newpos)
+       ; knock out B-piece
+       (if (= (array-ref brr newpos) 1)
+           (begin
+             ;(format #t "knock ~a at pos:~a" (if ply "b" "w") newpos)
+             (array-set! brr 0 newpos)
+             (if ply
+                 (set-bg-b-bar! bg (1+ (bg-b-bar bg)))
+                 (set-bg-w-bar! bg (1+ (bg-w-bar bg))))))))))
+  ; why return anything here?
+  ; perhaps return old board if move is not feasible? ie, opponent block
   bg)
 
-
+; FIX: storing path instead of state would be less memory consuming
 ; returns a list of paths
-(define (bg-fold-states path bg ply dices)
-  ;(let ((rr (random 9999)))
-  ;(format #t "    ~a-- bg-fold-states -- paths:~s dices=~s ~%" rr (length path) dices)
+(define (bg-fold-states bg dices)
+  (let ((ply (bg-ply bg)))
   (match (pts-ply bg ply)
     ((arr brr)
-  ;(indent (* 2 in))
-  ;(format #t "  bg-fold-states dices=~s~%" dices)
   ; scan all possible moves in 'arr' using dices d1 and d2
   (let ((dir (if ply -1 1))) ; white moves towards 0, black towards 24
     (cond
      ; no more dices to evaluate moves
      ((= (length dices) 0)
-      ;(indent (* 2 (length path)))
-      ;(format #t "    no more dice ~s~%" dices)
-      ;(format #t "       ~a-- no-dices! --~%" rr)
       (list bg)) ; we return a list of paths
      ; ply has pieces on bar, must move them first
      ((> (if ply (bg-w-bar bg) (bg-b-bar bg)) 0)
-      (indent (* 2 (length path)))
-      ;(format #t "    ~a-- bar-move~s~%" rr)
       (let ((d (car dices)))
         (cond
          ; position is possible to move in to
-         ((< (array-ref bar (if ply (- 24 d) (- 1 d))) 2)
+         ((< (array-ref brr (if ply (- 24 d) (- d 1))) 2)
           (let ((nbg (copy-bg bg)))
-            (cond
+            ; put piece on the board
+            (array-inc! (if ply (bg-w-pts nbg) (bg-b-pts nbg))
+                        (if ply 23 0) ; white/black start of opposite side
+                        1)
+            (cond ; remove piece from bar
              (ply
-              (set-bg-w-bar! nbg (1- (bg-w-bar! nbg))) ; remove piece from bar
-              (array-set! (bg-w-pts nbg) ; put piece on the board
-                          (1+ (bg-w-pts nbg))))
+              (set-bg-w-bar! nbg (1- (bg-w-bar nbg))))
              (else
-              (set-bg-b-bar! nbg (1- (bg-b-bar! nbg)))
-              (array-set! (bg-b-pts nbg)
-                          (1+ (bg-b-pts nbg)))))
-              (bg-fold-states path nbg ply (cdr dices))))
+              (set-bg-b-bar! nbg (1- (bg-b-bar nbg)))))
+            (bg-fold-states nbg (cdr dices))))
          (else ; position is occupied
           (if (eq? '() (cdr dices))
             '() ; no more dices, don't include this state
-            (bg-fold-states path bg ply (cdr dices)))))))
+            (bg-fold-states bg (cdr dices)))))))
      (else
-      ;(format #t "      ~a-- else-move --~%" rr)
       (let ((paths '()))
         (do ((p 0 (1+ p)))
             ((>= p 24))
@@ -213,32 +196,26 @@
             (if (> pcs 0) ; point carries a piece
                 (let* ((newpos (+ p (* (car dices) dir)))
                        (newpcs (1- pcs)))
-                  ;(format #t "        ~a-- do: ~a, pcs: ~a dices:~s (mov-pos ~a to ~a)~%" rr p pcs dices p newpos)
-                  ;(indent (* 2 (length path))
-                  ;(format #t "    consider p=~a pcs=~a dices=~s newpos=~a~%" p pcs dices newpos)
                   ; validate move
                   (if (or (< newpos 0) ; piece has moved outside of board
                           (> newpos 23) ; piece has moved outside of board
                           ; if piece lands on board, it mustn't be occupied
                           (< (array-ref brr newpos) 2)) ; max one opponent piece
                     (let ((nbg (bg-apply-move (copy-bg bg) p newpos newpcs ply)))
-                      (indent (* 2 (length path)))
-                      ;(format #t "    ~a-- nop=~a feasible move act=~s dices=~s~%" rr (length path) act dices)
                       (set! paths
                             (append paths
-                                    (bg-fold-states path nbg ply (cdr dices))))
-                      ;(format #t "    ~a-- new paths is: ~s~%" rr paths)
-                      ))))))
-        ;(format #t "  ~a-- paths: ~s~%" rr paths)
-        ;(if (> (length paths) 0) (format #t "    ~a-- found paths: ~s~%" rr paths))
-        paths)))))))
+                                    (bg-fold-states nbg (cdr dices))))))))))
+        (if (eq? paths '())
+            (list bg)
+            paths)))))))))
 
-(define (bg-find-all-states bg dices ply)
-  (let ((d1 (car dices))
+(define (bg-find-all-states bg dices)
+  (let ((ply (bg-ply bg))
+        (d1 (car dices))
         (d2 (cadr dices)))
-    (format #t "find-all-states white: ~a dice: [~a,~a]~%" ply d1 d2)
+    ;(format #t "  find-all-states ply:~a dice: [~a,~a]~%" ply d1 d2)
     ; scan all possible moves in 'arr' using dices d1 and d2
-    (bg-fold-states '() bg ply
+    (bg-fold-states bg
                     (cond
                      ((> d2 d1) (list d2 d1)) ; d1 must be >= d2
                      ((= d2 d1) (list d1 d1 d1 d1))
