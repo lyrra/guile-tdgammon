@@ -119,38 +119,35 @@
     (else
      (list 0. #f))))
 
-(define (run-tderr vxi net tderr vyo nout grad elig reward gamma gamma-lambda)
-  (let ()
-    ;---------------------------------------------
-    ; tderr <- r + gamma * V(s') - V(s)
-    ;   V(s) is previous output (wvyo/bvyo), and V(s') is wnet's output-layer
-    ; gamma * V(s') - V(s)
-    (svvs*! tderr vyo gamma)
-    (sv-! tderr tderr nout)
-    ; add reward
-    (array-map! tderr (lambda (x r) (+ x r)) tderr reward)
-
+(define (run-tderr vxi net tderr Vold Vnew grad elig reward gamma gamma-lambda)
+  (let ((alpha 0.01))
     ; calculate gradient GRAD(weight, output)
-    (set-sigmoid-gradient! grad nout)
+    (set-sigmoid-gradient! grad Vnew)
 
     ;---------------------------------------------
     ; update eligibility traces
     ; elig  <- gamma_lambda * e + Grad_theta(V(s))
+    ; z <- y*L* + Grad[V(s,w)]
+    ; FIX: elig för varje vikt i nätet? behöver vi vxi?
     (array-map! elig (lambda (e g)
                        (+ (* gamma-lambda e) g))
                 elig grad)
+
+    ;---------------------------------------------
+    ; tderr <- r + gamma * V(s') - V(s)
+    (svvs*! tderr Vnew gamma)
+    (sv-! tderr tderr Vold)
+    (array-map! tderr (lambda (x r) (+ x r)) tderr reward)
+
+    ; delta to update weights: w += alpha * tderr * grad * elig
+    (array-map! tderr (lambda (t g e) (* t g e)) tderr grad elig)
+
     ;---------------------------------------------
     ; update network weights
     ; theta <- theta + alpha * tderr * elig
-    (gradient-descent vxi
-                      net (array-map! tderr (lambda (a b) (* a b))
-                                      tderr elig)
-                      grad ; since we already has the gradient calculated
-                            ; FIX: do we do this trick in CL version?
-                      ; alpha
-                      0.3)))
+    (gradient-descent vxi net tderr elig alpha)))
 
-(define (run-turn bg net dices tderr vyo grad elig gamma gamma-lambda)
+(define (run-turn bg net dices tderr Vold grad elig gamma gamma-lambda)
   (let ((ply (bg-ply bg)))
     ;(format #t "  run-turn ply=~a, dices=~s~%" ply dices)
     (match (policy-take-action bg net dices)
@@ -160,7 +157,9 @@
        #f)
       ((vxi best-out best-path)
        (let ((bg2 best-path)
-             (nout (cadddr net)))
+             (Vnew (cadddr net)))
+         (set-bg-input bg vxi #t) ; net-output is stale, refresh it
+         (net-run net vxi)
          (match (get-reward bg2)
            ((reward terminal-state)
             (let ((rewarr (make-typed-array 'f32 0. 2)))
@@ -168,9 +167,10 @@
                 (begin
                   (array-set! rewarr 1. (if ply 0 1))
                   (array-set! rewarr -1. (if ply 1 0))))
-              (run-tderr vxi net tderr vyo nout grad elig rewarr gamma gamma-lambda))
+              ; Vold is the previous state-value, V(s), and Vnew is the next state-value, V(s')
+              (run-tderr vxi net tderr Vold Vnew grad elig rewarr gamma gamma-lambda))
             ; caches
-            (array-map! vyo (lambda (x) x) nout)
+            (array-map! Vold (lambda (x) x) Vnew)
             (list bg2 terminal-state))))))))
 
 (define (file-write-net file episode wnet bnet)
