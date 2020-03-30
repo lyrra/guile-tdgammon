@@ -74,8 +74,6 @@
      (sigmoid vyo)
      #f)))
 
-(define *rands* #f)
-
 (define (roll-dices)
   (let ((d1 (1+ (truncate (random 6 *rands*))))
         (d2 (1+ (truncate (random 6 *rands*)))))
@@ -148,15 +146,6 @@
        (car paths))
       ((eq? style #:late)
        (car (last-pair paths)))))))
-
-(define (sv-! dst src1 src2)
-  (array-map! dst (lambda (a b)
-                    (- a b))
-              src1 src2))
-
-(define (svvs*! dst vec sc)
-  (array-map! dst (lambda (v) (* v sc))
-              vec))
 
 (define (state-terminal? bg)
   (or (= (bg-w-rem bg) 15) ; white has won
