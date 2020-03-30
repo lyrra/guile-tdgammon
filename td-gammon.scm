@@ -1,4 +1,14 @@
 
+(define (file-load-net file which)
+  (let ((net #f))
+    (call-with-input-file file
+      (lambda (p)
+        (let ((x (read p)))
+          (set! net
+                (car (cdr (if which (caddr x) (cadddr x))))))))
+    (format #t "loaded network!~%")
+    net))
+
 (define (make-net)
   (let ((mhw (rand-m! (make-typed-array 'f32 *unspecified* 40 198)))
         (vho (rand-v! (make-typed-array 'f32 *unspecified* 40)))
@@ -200,7 +210,7 @@
         (#f)
         ;((= episode 10))
       ; save the network now and then
-      (if (= (modulo episode 20) 0)
+      (if (and wnet (= (modulo episode 20) 0))
           (file-write-net (format #f "net-~a.txt" episode)
                           episode wnet bnet))
       (let ((wvyo (make-typed-array 'f32 0. 2))

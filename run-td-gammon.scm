@@ -7,11 +7,19 @@
 (load "backgammon.scm")
 (load "td-gammon.scm")
 
-
 (define (main)
   (init-rand)
   (let* ((wnet (make-net))
          (bnet (make-net)))
+    (do ((args (command-line) (cdr args)))
+        ((eq? args '()))
+      (format #t "  arg: ~s~%" (car args))
+      (if (string=? (car args) "--human")
+          (set! wnet #f))
+      (if (string-contains (car args) "--wnet=")
+          (set! wnet (file-load-net (substring (car args) 7) #t)))
+      (if (string-contains (car args) "--bnet=")
+          (set! bnet (file-load-net (substring (car args) 7) #f))))
     (run-tdgammon wnet bnet)))
 
 (main)
