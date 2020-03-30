@@ -107,6 +107,48 @@
   (let ((paths (bg-find-all-states bg dices)))
     (best-path paths net (if (bg-ply bg) 0 1))))
 
+(define (human-take-action bg dices)
+  (let ((paths (bg-find-all-states bg dices))
+        (i 0))
+    (loop-for path in paths do
+      (format #t "~a path: ~s~%" i path)
+      (set! i (1+ i)))
+    ; ---- print board ---------
+    (do ((p 0 (1+ p)))
+        ((>= p 24))
+      (format #t "~2d  " p))
+    (format #t "~%")
+    (let ()
+      (do ((p 0 (1+ p)))
+          ((>= p 24))
+        (let ((pcs 0))
+          (loop-for path in paths do
+            (let ((x (array-ref (bg-w-pts path) p)))
+              (if (and (> x 0)
+                       (or (= pcs 0)
+                           (< pcs 9)))
+                (set! pcs (+ pcs 1)))))
+          (if (> pcs 0)
+              (format #t "~2d  " pcs)
+              (format #t "    ")))))
+    (format #t "~%Please select path> ")
+    ; --------------------------
+    (let ((n (read)))
+      (list-ref paths n))))
+
+(define (style-take-action bg dices style)
+  (let ((paths (bg-find-all-states bg dices))
+        (i 0))
+    (if (= (length paths) 0)
+        #f
+        (cond
+      ((eq? style #:random)
+       (list-ref paths (random (length paths))))
+      ((eq? style #:early)
+       (car paths))
+      ((eq? style #:late)
+       (car (last-pair paths)))))))
+
 (define (sv-! dst src1 src2)
   (array-map! dst (lambda (a b)
                     (- a b))
@@ -116,12 +158,15 @@
   (array-map! dst (lambda (v) (* v sc))
               vec))
 
+(define (state-terminal? bg)
+  (or (= (bg-w-rem bg) 15) ; white has won
+      (= (bg-b-rem bg) 15))) ; black has won
+
 (define (get-reward bg)
   ; we can make a move, see if the move has put us in an terminal position
   (cond
     ; Until s' is terminal (bg2 is part of s')
-    ((or (= (bg-w-rem bg) 15) ; white has won
-         (= (bg-b-rem bg) 15)) ; black has won
+    ((state-terminal? bg)
      (let ((ply (bg-ply bg))) ; who's turn it was, and receives the reward
        ; in terminal state, we get a reward of 1
        (assert (= (if (bg-ply bg) (bg-w-rem bg) (bg-b-rem bg)) 15))
@@ -157,7 +202,7 @@
     ; theta <- theta + alpha * tderr * elig
     (gradient-descent vxi net tderr elig alpha)))
 
-(define (run-turn bg net dices tderr Vold grad elig gamma gamma-lambda)
+(define (run-turn-ml bg net dices tderr Vold grad elig gamma gamma-lambda)
   (let ((ply (bg-ply bg)))
     ;(format #t "  run-turn ply=~a, dices=~s~%" ply dices)
     (match (policy-take-action bg net dices)
@@ -182,6 +227,38 @@
             ; caches
             (array-map! Vold (lambda (x) x) Vnew)
             (list bg2 terminal-state))))))))
+
+(define (run-turn-human bg dices)
+  (let ((ply (bg-ply bg)))
+    (match (human-take-action bg dices)
+      (#f ; player can't move (example is all pieces are on the bar)
+       ; since we have no moves to consider/evaluate, we just yield to the other player
+       #f)
+      (new-bg
+        (list new-bg (state-terminal? new-bg))))))
+
+(define (run-turn-style bg dices style)
+  (let ((ply (bg-ply bg)))
+    (match (style-take-action bg dices style)
+      (#f ; player can't move (example is all pieces are on the bar)
+       ; since we have no moves to consider/evaluate, we just yield to the other player
+       #f)
+      (new-bg
+        (list new-bg (state-terminal? new-bg))))))
+
+(define (run-turn bg net dices tderr Vold grad elig gamma gamma-lambda)
+  (let ((ply (bg-ply bg)))
+    (cond
+     ((eq? net #:human) ; human type of neural-network controls player
+       (run-turn-human bg dices #:human))
+     ((eq? net #:late) ; remove pieces as late as possible
+       (run-turn-style bg dices #:late))
+     ((eq? net #:early) ; remove pieces as soon as possible
+       (run-turn-style bg dices #:early))
+     ((eq? net #:random) ; make random moves
+       (run-turn-style bg dices #:random))
+     (else ; player is controlled by artificial type of neural-network
+       (run-turn-ml bg net dices tderr Vold grad elig gamma gamma-lambda)))))
 
 (define (file-write-net file episode wnet bnet)
   (call-with-output-file file
@@ -255,8 +332,12 @@
              (set! terminal-state is-terminal-state)
              (if is-terminal-state
                (cond
-                ((= (bg-w-rem bg) 15) (set! wwin (+ wwin 1)))
-                ((= (bg-b-rem bg) 15) (set! bwin (+ bwin 1)))))))
+                ((= (bg-w-rem bg) 15)
+                 (set! wwin (+ wwin 1))
+                 (format #t "### WHITE HAS WON!~%-----------------------------------~%"))
+                ((= (bg-b-rem bg) 15)
+                 (set! bwin (+ bwin 1))
+                 (format #t "OOO BLACK HAS WON!~%-----------------------------------~%"))))))
           (set! dices (roll-dices)) ; also part of state
           (set-bg-ply! bg (not ply))
           ; bookkeeping
