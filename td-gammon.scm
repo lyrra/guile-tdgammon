@@ -173,6 +173,17 @@
             (array-map! vyo (lambda (x) x) nout)
             (list bg2 terminal-state))))))))
 
+(define (file-write-net file episode wnet bnet)
+  (call-with-output-file file
+    (lambda (p)
+      (format p "(#:episode ~a~%" episode)
+      (format p "(#:wnet~%")
+      (write wnet p)
+      (format p "~%)~%(#:bnet~%")
+      (write bnet p)
+      (format p "))~%")
+      )))
+
 (define (run-tdgammon wnet bnet)
   ; initialize theta, given by parameters wnet and bnet
   (let ((gamma 0.9) ; td-gamma
@@ -185,7 +196,12 @@
         (terminal-state #f))
     ; loop for each episode
     (do ((episode 0 (1+ episode)))
-        ((= episode 10))
+        (#f)
+        ;((= episode 10))
+      ; save the network now and then
+      (if (= (modulo episode 20) 0)
+          (file-write-net (format #f "net-~a.txt" episode)
+                          episode wnet bnet))
       (let ((wvyo (make-typed-array 'f32 0. 2))
             (bvyo (make-typed-array 'f32 0. 2))
             (wgrad (make-typed-array 'f32 0. 2))
