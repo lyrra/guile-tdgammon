@@ -193,6 +193,7 @@
         ; eligibility-traces
         (welig (make-typed-array 'f32 *unspecified* 2))
         (belig (make-typed-array 'f32 *unspecified* 2))
+        (wwin 0) (bwin 0)
         (terminal-state #f))
     ; loop for each episode
     (do ((episode 0 (1+ episode)))
@@ -220,8 +221,8 @@
       (do ((step 0 (1+ step)))
           (terminal-state)
         (let ((ply (bg-ply bg)))
-          (format #t "~a.~a: dices: ~s w/b-turn: ~a bar:[~a,~a] rem:[~a,~a]~%"
-                  episode step dices (bg-ply bg)
+          (format #t "~a.~a: [~a/~a] dices: ~s w/b-turn: ~a bar:[~a,~a] rem:[~a,~a]~%"
+                  episode step wwin bwin dices (bg-ply bg)
                   (bg-w-bar bg) (bg-b-bar bg)
                   (bg-w-rem bg) (bg-b-rem bg))
           (bg-print-board bg)
@@ -241,7 +242,11 @@
              ; evolve state
              ; s <- s'
              (set! bg new-bg)
-             (set! terminal-state is-terminal-state)))
+             (set! terminal-state is-terminal-state)
+             (if is-terminal-state
+               (cond
+                ((= (bg-w-rem bg) 15) (set! wwin (+ wwin 1)))
+                ((= (bg-b-rem bg) 15) (set! bwin (+ bwin 1)))))))
           (set! dices (roll-dices)) ; also part of state
           (set-bg-ply! bg (not ply))
           ; bookkeeping
