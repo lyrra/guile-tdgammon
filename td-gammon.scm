@@ -30,7 +30,7 @@
                        (* s (- 1. s))))
                    grad))
 
-(define (gradient-descent vxi net err grad alpha)
+(define (gradient-descent vxi net grad alpha)
   (match net
     ((mhw vho myw vyo)
      ;  mhw: (40 198)
@@ -108,6 +108,9 @@
 (define (human-take-action bg dices)
   (let ((paths (bg-find-all-states bg dices))
         (i 0))
+    (cond
+      ((not (eq paths '())) '()) ; no paths to take
+      (else
     (loop-for path in paths do
       (format #t "~a path: ~s~%" i path)
       (set! i (1+ i)))
@@ -132,7 +135,7 @@
     (format #t "~%Please select path> ")
     ; --------------------------
     (let ((n (read)))
-      (list-ref paths n))))
+      (list-ref paths n))))))
 
 (define (style-take-action bg dices style)
   (let ((paths (bg-find-all-states bg dices))
@@ -189,9 +192,36 @@
     ;---------------------------------------------
     ; update network weights
     ; theta <- theta + alpha * tderr * elig
-    (gradient-descent vxi net tderr elig alpha)))
+    (gradient-descent vxi net tderr alpha)))
 
-(define (run-turn-ml bg net dices tderr Vold grad elig gamma gamma-lambda)
+(define (run-mcerr vxi net tderr Vold Vnew grad reward gamma gamma-lambda)
+  (let ((alpha 0.01))
+    ; calculate gradient GRAD(weight, output)
+    (set-sigmoid-gradient! grad Vnew)
+
+    ;---------------------------------------------
+    ; tderr <- r + gamma * V(s') - V(s)
+    (svvs*! tderr Vnew gamma)
+    (sv-! tderr tderr Vold)
+    (array-map! tderr (lambda (x r) (+ x r)) tderr reward)
+
+    ; delta to update weights: w += alpha * tderr * grad
+    (array-map! tderr (lambda (t g) (* t g)) tderr grad)
+
+    ;---------------------------------------------
+    ; update network weights
+    ; theta <- theta + alpha * tderr
+    (gradient-descent vxi net tderr alpha)))
+
+(define (learn-net net es tderr grad gamma lam)
+  (let ((n 1))
+    (loop-for e in es do
+      (match e
+        ((rewarr vxi Vold Vnew)
+         (run-mcerr vxi net tderr Vold Vnew grad rewarr gamma (expt lam n))
+         (set! n (1+ n)))))))
+
+(define (run-turn-ml bg net dices tderr Vold grad elig es gamma gamma-lambda)
   (let ((ply (bg-ply bg)))
     ;(format #t "  run-turn ply=~a, dices=~s~%" ply dices)
     (match (policy-take-action bg net dices)
@@ -212,10 +242,12 @@
                   (array-set! rewarr 1. (if ply 0 1))
                   (array-set! rewarr -1. (if ply 1 0))))
               ; Vold is the previous state-value, V(s), and Vnew is the next state-value, V(s')
-              (run-tderr vxi net tderr Vold Vnew grad elig rewarr gamma gamma-lambda))
+              (set! es (cons (list rewarr vxi Vold Vnew) es))
+              ;(run-tderr vxi net tderr Vold Vnew grad elig rewarr gamma gamma-lambda)
+              )
             ; caches
             (array-map! Vold (lambda (x) x) Vnew)
-            (list bg2 terminal-state))))))))
+            (list bg2 terminal-state es))))))))
 
 (define (run-turn-human bg dices)
   (let ((ply (bg-ply bg)))
@@ -224,7 +256,7 @@
        ; since we have no moves to consider/evaluate, we just yield to the other player
        #f)
       (new-bg
-        (list new-bg (state-terminal? new-bg))))))
+        (list new-bg (state-terminal? new-bg) '())))))
 
 (define (run-turn-style bg dices style)
   (let ((ply (bg-ply bg)))
@@ -233,13 +265,13 @@
        ; since we have no moves to consider/evaluate, we just yield to the other player
        #f)
       (new-bg
-        (list new-bg (state-terminal? new-bg))))))
+        (list new-bg (state-terminal? new-bg) '())))))
 
-(define (run-turn bg net dices tderr Vold grad elig gamma gamma-lambda)
+(define (run-turn bg net dices tderr Vold grad elig es gamma gamma-lambda)
   (let ((ply (bg-ply bg)))
     (cond
      ((eq? net #:human) ; human type of neural-network controls player
-       (run-turn-human bg dices #:human))
+       (run-turn-human bg dices))
      ((eq? net #:late) ; remove pieces as late as possible
        (run-turn-style bg dices #:late))
      ((eq? net #:early) ; remove pieces as soon as possible
@@ -247,7 +279,7 @@
      ((eq? net #:random) ; make random moves
        (run-turn-style bg dices #:random))
      (else ; player is controlled by artificial type of neural-network
-       (run-turn-ml bg net dices tderr Vold grad elig gamma gamma-lambda)))))
+       (run-turn-ml bg net dices tderr Vold grad elig es gamma gamma-lambda)))))
 
 (define (file-write-net file episode wnet bnet)
   (call-with-output-file file
@@ -267,6 +299,8 @@
         (bg (setup-bg))
         (dices (roll-dices))
         ; eligibility-traces
+        (wes '())
+        (bes '())
         (welig (make-typed-array 'f32 *unspecified* 2))
         (belig (make-typed-array 'f32 *unspecified* 2))
         (wwin 0) (bwin 0)
@@ -292,6 +326,8 @@
       (set-bg-ply! bg #t) ; whites turn
       (set! dices (roll-dices))
       (set! terminal-state #f)
+      (set! wes '())
+      (set! bes '())
       ; get initial action here
       ; Repeat for each step in episode:
       (do ((step 0 (1+ step)))
@@ -312,9 +348,10 @@
                            (if ply wvyo bvyo)
                            (if ply wgrad bgrad)
                            (if ply welig belig)
+                           (if ply wes bes)
                            gamma gamma-lambda)
             (#f 'ok) ; cant move
-            ((new-bg is-terminal-state)
+            ((new-bg is-terminal-state new-w/b-es)
              ; evolve state
              ; s <- s'
              (set! bg new-bg)
@@ -323,10 +360,18 @@
                (cond
                 ((= (bg-w-rem bg) 15)
                  (set! wwin (+ wwin 1))
-                 (format #t "### WHITE HAS WON!~%-----------------------------------~%"))
+                 ; at terminal-state go through all-steps and learn
+                 (if (list? wnet)
+                   (learn-net wnet new-w/b-es tderr wgrad gamma gamma-lambda))
+                 (format #t "### WHITE HAS WON!~%-----------------------------------~%")
+                 )
                 ((= (bg-b-rem bg) 15)
                  (set! bwin (+ bwin 1))
-                 (format #t "OOO BLACK HAS WON!~%-----------------------------------~%"))))))
+                 ; at terminal-state go through all-steps and learn
+                 (if (list? bnet)
+                   (learn-net bnet new-w/b-es tderr bgrad gamma gamma-lambda))
+                 (format #t "OOO BLACK HAS WON!~%-----------------------------------~%")))
+               (if ply (set! wes new-w/b-es) (set! bes new-w/b-es)))))
           (set! dices (roll-dices)) ; also part of state
           (set-bg-ply! bg (not ply))
           ; bookkeeping
