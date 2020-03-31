@@ -10,7 +10,9 @@
 (define (main)
   (init-rand)
   (let* ((wnet (make-net))
-         (bnet (make-net)))
+         (bnet (make-net))
+         (measure #f)
+         (episodes #f))
     (do ((args (command-line) (cdr args)))
         ((eq? args '()))
       (format #t "  arg: ~s~%" (car args))
@@ -25,7 +27,15 @@
       (if (string-contains (car args) "--wnet=")
           (set! wnet (file-load-net (substring (car args) 7) #t)))
       (if (string-contains (car args) "--bnet=")
-          (set! bnet (file-load-net (substring (car args) 7) #f))))
-    (run-tdgammon wnet bnet)))
+          (set! bnet (file-load-net (substring (car args) 7) #f)))
+      (if (string-contains (car args) "--measure=")
+          (set! measure (substring (car args) 10)))
+      (if (string-contains (car args) "--episodes=")
+          (set! episodes (string->number (substring (car args) 11)))))
+    (cond
+     (measure
+      (run-tdgammon-measure measure #:episodes episodes))
+     (else
+      (run-tdgammon wnet bnet)))))
 
 (main)

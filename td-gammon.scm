@@ -292,7 +292,7 @@
       (format p "))~%")
       )))
 
-(define (run-tdgammon wnet bnet)
+(define* (run-tdgammon wnet bnet #:key episodes save)
   ; initialize theta, given by parameters wnet and bnet
   (let ((gamma 0.9) ; td-gamma
         (gamma-lambda 0.9) ; eligibility-trace decay
@@ -304,13 +304,15 @@
         (welig (make-typed-array 'f32 *unspecified* 2))
         (belig (make-typed-array 'f32 *unspecified* 2))
         (wwin 0) (bwin 0)
-        (terminal-state #f))
+        (terminal-state #f)
+        (episodes-done #f))
     ; loop for each episode
     (do ((episode 0 (1+ episode)))
-        (#f)
+        (episodes-done)
         ;((= episode 10))
+      (if (>= episode episodes) (set! episodes-done #t))
       ; save the network now and then
-      (if (and wnet (= (modulo episode 20) 0))
+      (if (and save wnet (= (modulo episode 20) 0))
           (file-write-net (format #f "net-~a.txt" episode)
                           episode wnet bnet))
       (let ((wvyo (make-typed-array 'f32 0. 2))
@@ -386,4 +388,20 @@
             (set! btot (+ btot (bg-b-bar bg)))
             (assert (= wtot 15) (format #f "w-pcs/=15:~a" wtot))
             (assert (= btot 15) (format #f "b-pcs/=15:~a" btot))
-            )))))))
+            )))))
+    (list wwin bwin)))
+
+(define* (run-tdgammon-measure file #:key episodes)
+  (let* ((bnet (file-load-net file #f))
+         (play-random (run-tdgammon #:random bnet #:episodes (or episodes 100) #:save #f))
+         (play-early  (run-tdgammon #:early  bnet #:episodes (or episodes 100) #:save #f))
+         (play-late   (run-tdgammon #:late   bnet #:episodes (or episodes 100) #:save #f))
+         (totwwin 0) (totbwin 0))
+    ; sum . zip
+    (set! totwwin (+ totwwin (car play-random)))
+    (set! totbwin (+ totbwin (cadr play-random)))
+    (set! totwwin (+ totwwin (car play-early)))
+    (set! totbwin (+ totbwin (cadr play-early)))
+    (set! totwwin (+ totwwin (car play-late)))
+    (set! totbwin (+ totbwin (cadr play-late)))
+    (format #t "RESULT: ~a,~a~%" totwwin totbwin)))
