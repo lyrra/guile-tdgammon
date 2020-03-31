@@ -28,7 +28,7 @@
   (array-map! grad (lambda (x)
                      (let ((s (/ 1. (+ 1. (exp (- x))))))
                        (* s (- 1. s))))
-                   grad))
+                   out))
 
 (define (gradient-descent vxi net grad alpha)
   (match net
@@ -48,13 +48,13 @@
                (do ((j 0 (+ j 1))) ((= j c))
                  (let ((w (array-ref myw i j))
                        (o (array-ref vho j)))
-                   (array-set! myw (+ (array-ref myw i j) (* alpha o g)) i j)
+                   (array-set! myw (+ w (* alpha o g)) i j)
                    ; populate gradient
                    (array-set! go (+ (array-ref go i) (* g w)) i)
                    ; each of the 40 neurons (i) in hidden layer, is connected to both neurons at output layer
                    ; therefore foreach neuron, we sum the gradient coming from the two neurons below
                    ))))))
-       (sigmoid go)
+       (set-sigmoid-gradient! go go)
        ; propagate gradient backwards to hidden weights
        (match (array-dimensions mhw)
          ((r c)
@@ -63,7 +63,7 @@
                (do ((j 0 (+ j 1))) ((= j c))
                  (let ((w (array-ref mhw i j))
                        (o (array-ref vxi j)))
-                   (array-set! mhw (+ (array-ref mhw i j) (* alpha o g)) i j)))))))))))
+                   (array-set! mhw (+ w (* alpha o g)) i j)))))))))))
 
 (define (net-run net input)
   (match net
@@ -109,7 +109,7 @@
   (let ((paths (bg-find-all-states bg dices))
         (i 0))
     (cond
-      ((not (eq paths '())) '()) ; no paths to take
+      ((not (eq? paths '())) '()) ; no paths to take
       (else
     (loop-for path in paths do
       (format #t "~a path: ~s~%" i path)
@@ -213,13 +213,19 @@
     ; theta <- theta + alpha * tderr
     (gradient-descent vxi net tderr alpha)))
 
-(define (learn-net net es tderr rl gamma lam)
+; if loser, then we have to adjust last reward
+(define (learn-net net es tderr rl gamma lam loser ply who text)
   (match rl
     ((elig Vold grad)
   (let ((n 1))
     (loop-for e in es do
       (match e
         ((rewarr vxi Vold Vnew)
+         (if (and (= n 1) loser) ; adjust reward since we lost
+           (begin
+             ;(format #t "original reward: ~s ply: ~s who: ~a text: ~a~%" rewarr ply who text)
+             (array-set! rewarr 0. 0)
+             (array-set! rewarr 1. 1)))
          (run-mcerr vxi net tderr Vold Vnew grad rewarr gamma (expt lam n))
          (set! n (1+ n)))))))))
 
@@ -243,8 +249,8 @@
             (let ((rewarr (make-typed-array 'f32 0. 2)))
               (if (> reward 0)
                 (begin
-                  (array-set! rewarr 1. (if ply 0 1))
-                  (array-set! rewarr -1. (if ply 1 0))))
+                  (array-set! rewarr 1. 0)
+                  (array-set! rewarr 0. 1)))
               ; Vold is the previous state-value, V(s), and Vnew is the next state-value, V(s')
               (set! es (cons (list rewarr vxi Vold Vnew) es))
               (run-tderr vxi net tderr Vold Vnew grad elig rewarr gamma gamma-lambda))
@@ -326,9 +332,9 @@
     (do ((episode 0 (1+ episode)))
         (episodes-done)
         ;((= episode 10))
-      (if (>= episode episodes) (set! episodes-done #t))
+      (if (and episodes (>= episode episodes)) (set! episodes-done #t))
       ; save the network now and then
-      (if (and save wnet (= (modulo episode 20) 0))
+      (if (and save wnet (= (modulo episode 100) 0))
           (file-write-net (format #f "net-~a.txt" episode)
                           episode wnet bnet))
       ; set s to initial state of episode
@@ -366,22 +372,27 @@
              ; s <- s'
              (set! bg new-bg)
              (set! terminal-state is-terminal-state)
-             (if is-terminal-state
+             (cond
+              (is-terminal-state
                (cond
                 ((= (bg-w-rem bg) 15)
                  (set! wwin (+ wwin 1))
                  ; at terminal-state go through all-steps and learn
                  (if (list? wnet)
-                   (learn-net wnet new-w/b-es tderr rlw gamma gamma-lambda))
-                 (format #t "### WHITE HAS WON!~%-----------------------------------~%")
-                 )
+                   (learn-net wnet new-w/b-es tderr rlw gamma gamma-lambda #f ply #t "white-win"))
+                 (if (list? bnet)
+                   (learn-net bnet bes tderr rlb gamma gamma-lambda #t ply #f "black-lose"))
+                 (format #t "### WHITE HAS WON!~%-----------------------------------~%"))
                 ((= (bg-b-rem bg) 15)
                  (set! bwin (+ bwin 1))
                  ; at terminal-state go through all-steps and learn
                  (if (list? bnet)
-                   (learn-net bnet new-w/b-es tderr rlb gamma gamma-lambda))
-                 (format #t "OOO BLACK HAS WON!~%-----------------------------------~%")))
-               (if ply (set! wes new-w/b-es) (set! bes new-w/b-es)))))
+                   (learn-net bnet new-w/b-es tderr rlb gamma gamma-lambda #f ply #f "black-win"))
+                 (if (list? wnet)
+                   (learn-net wnet wes tderr rlw gamma gamma-lambda #t ply #t "white-lose"))
+                 (format #t "OOO BLACK HAS WON!~%-----------------------------------~%"))))
+              (else
+               (if ply (set! wes new-w/b-es) (set! bes new-w/b-es))))))
           (set! dices (roll-dices)) ; also part of state
           (set-bg-ply! bg (not ply))
           ; bookkeeping

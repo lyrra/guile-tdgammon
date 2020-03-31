@@ -36,6 +36,6 @@
      (measure
       (run-tdgammon-measure measure #:episodes episodes))
      (else
-      (run-tdgammon wnet bnet)))))
+      (run-tdgammon wnet bnet #:save #t)))))
 
 (main)
