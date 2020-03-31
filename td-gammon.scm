@@ -213,15 +213,19 @@
     ; theta <- theta + alpha * tderr
     (gradient-descent vxi net tderr alpha)))
 
-(define (learn-net net es tderr grad gamma lam)
+(define (learn-net net es tderr rl gamma lam)
+  (match rl
+    ((elig Vold grad)
   (let ((n 1))
     (loop-for e in es do
       (match e
         ((rewarr vxi Vold Vnew)
          (run-mcerr vxi net tderr Vold Vnew grad rewarr gamma (expt lam n))
-         (set! n (1+ n)))))))
+         (set! n (1+ n)))))))))
 
-(define (run-turn-ml bg net dices tderr Vold grad elig es gamma gamma-lambda)
+(define (run-turn-ml bg net dices tderr rl es gamma gamma-lambda)
+  (match rl
+    ((elig Vold grad)
   (let ((ply (bg-ply bg)))
     ;(format #t "  run-turn ply=~a, dices=~s~%" ply dices)
     (match (policy-take-action bg net dices)
@@ -243,11 +247,10 @@
                   (array-set! rewarr -1. (if ply 1 0))))
               ; Vold is the previous state-value, V(s), and Vnew is the next state-value, V(s')
               (set! es (cons (list rewarr vxi Vold Vnew) es))
-              ;(run-tderr vxi net tderr Vold Vnew grad elig rewarr gamma gamma-lambda)
-              )
+              (run-tderr vxi net tderr Vold Vnew grad elig rewarr gamma gamma-lambda))
             ; caches
             (array-map! Vold (lambda (x) x) Vnew)
-            (list bg2 terminal-state es))))))))
+            (list bg2 terminal-state es))))))))))
 
 (define (run-turn-human bg dices)
   (let ((ply (bg-ply bg)))
@@ -267,7 +270,7 @@
       (new-bg
         (list new-bg (state-terminal? new-bg) '())))))
 
-(define (run-turn bg net dices tderr Vold grad elig es gamma gamma-lambda)
+(define (run-turn bg net dices tderr rl es gamma gamma-lambda)
   (let ((ply (bg-ply bg)))
     (cond
      ((eq? net #:human) ; human type of neural-network controls player
@@ -279,7 +282,7 @@
      ((eq? net #:random) ; make random moves
        (run-turn-style bg dices #:random))
      (else ; player is controlled by artificial type of neural-network
-       (run-turn-ml bg net dices tderr Vold grad elig es gamma gamma-lambda)))))
+       (run-turn-ml bg net dices tderr rl es gamma gamma-lambda)))))
 
 (define (file-write-net file episode wnet bnet)
   (call-with-output-file file
@@ -292,6 +295,18 @@
       (format p "))~%")
       )))
 
+(define (make-rl)
+  (list (make-typed-array 'f32 *unspecified* 2) ; elig
+        (make-typed-array 'f32 0. 2) ; copy of output-layer
+        (make-typed-array 'f32 0. 2))) ; gradient
+
+(define (rl-episode-clear rl)
+  ; initialize eligibily traces to 0
+  (match rl
+    ((elig vyo grad)
+     (array-map! elig (lambda (x) 0.) elig)
+     )))
+
 (define* (run-tdgammon wnet bnet #:key episodes save)
   ; initialize theta, given by parameters wnet and bnet
   (let ((gamma 0.9) ; td-gamma
@@ -299,12 +314,13 @@
         (bg (setup-bg))
         (dices (roll-dices))
         ; eligibility-traces
+        (rlw (make-rl))
+        (rlb (make-rl))
         (wes '())
         (bes '())
-        (welig (make-typed-array 'f32 *unspecified* 2))
-        (belig (make-typed-array 'f32 *unspecified* 2))
         (wwin 0) (bwin 0)
         (terminal-state #f)
+        (tderr (make-typed-array 'f32 0. 2))
         (episodes-done #f))
     ; loop for each episode
     (do ((episode 0 (1+ episode)))
@@ -315,14 +331,6 @@
       (if (and save wnet (= (modulo episode 20) 0))
           (file-write-net (format #f "net-~a.txt" episode)
                           episode wnet bnet))
-      (let ((wvyo (make-typed-array 'f32 0. 2))
-            (bvyo (make-typed-array 'f32 0. 2))
-            (wgrad (make-typed-array 'f32 0. 2))
-            (bgrad (make-typed-array 'f32 0. 2))
-            (tderr (make-typed-array 'f32 0. 2)))
-      ; initialize eligibily traces to 0
-      (array-map! welig (lambda (x) 0.) welig)
-      (array-map! belig (lambda (x) 0.) belig)
       ; set s to initial state of episode
       (set! bg (setup-bg))
       (set-bg-ply! bg #t) ; whites turn
@@ -330,6 +338,8 @@
       (set! terminal-state #f)
       (set! wes '())
       (set! bes '())
+      (rl-episode-clear rlw)
+      (rl-episode-clear rlb)
       ; get initial action here
       ; Repeat for each step in episode:
       (do ((step 0 (1+ step)))
@@ -347,9 +357,7 @@
           ;     s' = { best-bg, new-dice-roll }
           (match (run-turn bg (if ply wnet bnet)
                            dices tderr
-                           (if ply wvyo bvyo)
-                           (if ply wgrad bgrad)
-                           (if ply welig belig)
+                           (if ply rlw rlb)
                            (if ply wes bes)
                            gamma gamma-lambda)
             (#f 'ok) ; cant move
@@ -364,14 +372,14 @@
                  (set! wwin (+ wwin 1))
                  ; at terminal-state go through all-steps and learn
                  (if (list? wnet)
-                   (learn-net wnet new-w/b-es tderr wgrad gamma gamma-lambda))
+                   (learn-net wnet new-w/b-es tderr rlw gamma gamma-lambda))
                  (format #t "### WHITE HAS WON!~%-----------------------------------~%")
                  )
                 ((= (bg-b-rem bg) 15)
                  (set! bwin (+ bwin 1))
                  ; at terminal-state go through all-steps and learn
                  (if (list? bnet)
-                   (learn-net bnet new-w/b-es tderr bgrad gamma gamma-lambda))
+                   (learn-net bnet new-w/b-es tderr rlb gamma gamma-lambda))
                  (format #t "OOO BLACK HAS WON!~%-----------------------------------~%")))
                (if ply (set! wes new-w/b-es) (set! bes new-w/b-es)))))
           (set! dices (roll-dices)) ; also part of state
@@ -388,7 +396,7 @@
             (set! btot (+ btot (bg-b-bar bg)))
             (assert (= wtot 15) (format #f "w-pcs/=15:~a" wtot))
             (assert (= btot 15) (format #f "b-pcs/=15:~a" btot))
-            )))))
+            ))))
     (list wwin bwin)))
 
 (define* (run-tdgammon-measure file #:key episodes)
