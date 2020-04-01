@@ -67,17 +67,19 @@
        ((= pcs 2) (array-set! vxi 1. (+ 1 (* p 4) off)))
        ((= pcs 1) (array-set! vxi 1. (+ 0 (* p 4) off)))))))
 
-(define (pts-ply bg ply)
+(define (pts-ply bg)
   (let  ((arr (bg-w-pts bg))
          (brr (bg-b-pts bg)))
-    (if (not ply) ; black's move, swap
+    (if (not (bg-ply bg)) ; black's move, swap
         (let ((tmp arr))
           (set! arr brr)
           (set! brr tmp)))
     (list arr brr)))
 
 (define (bg-print-board bg)
-  (match (pts-ply bg #t)
+  (let ((old-ply (bg-ply bg)))
+    (set-bg-ply! bg #t)
+  (match (pts-ply bg)
     ((arr brr)
      (do ((p 0 (1+ p)))
          ((>= p 24))
@@ -97,20 +99,21 @@
              (format #t "~2d  " bpcs)
              (format #t "    "))))
      (format #t "[b:~a, r:~a]~%" (bg-b-bar bg) (bg-b-rem bg))
-     (format #t "~%"))))
+     (format #t "~%")))
+  (set-bg-ply! bg old-ply)))
 
 ; input features as specified by Tesauro's td-gammon
-(define (set-bg-input bg vxi ply)
+(define (set-bg-input bg vxi)
   ; 192 inputs decode for white+black * 4input * 24 points
   (let ((n 0))
-    (match (pts-ply bg ply)
+    (match (pts-ply bg)
       ((arr brr)
        (set-bg-input-pts arr vxi n)
        (set! n (+ n (* 4 24)))
        (set-bg-input-pts brr vxi n)
        (set! n (+ n (* 4 24)))
        (cond
-        (ply
+        ((bg-ply bg)
          (array-set! vxi (/ (bg-w-bar bg)  2) n)
          (array-set! vxi (/ (bg-b-bar bg)  2) (+ 1 n))
          (array-set! vxi (/ (bg-w-rem bg) 15) (+ 2 n))
@@ -128,7 +131,7 @@
        n))))
 
 (define (bg-apply-move bg oldpos newpos newpcs ply)
-  (match (pts-ply bg ply)
+  (match (pts-ply bg)
     ((arr brr)
      ; remove A-piece from old-position
      (array-set! arr (1- (array-ref arr oldpos)) oldpos)
@@ -159,7 +162,7 @@
 ; returns a list of paths
 (define (bg-fold-states bg dices)
   (let ((ply (bg-ply bg)))
-  (match (pts-ply bg ply)
+  (match (pts-ply bg)
     ((arr brr)
   ; scan all possible moves in 'arr' using dices d1 and d2
   (let ((dir (if ply -1 1))) ; white moves towards 0, black towards 24

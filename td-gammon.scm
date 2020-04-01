@@ -13,8 +13,9 @@
   (let ((mhw (rand-m! (make-typed-array 'f32 *unspecified* 40 198)))
         (vho (rand-v! (make-typed-array 'f32 *unspecified* 40)))
         (myw (rand-m! (make-typed-array 'f32 *unspecified* 2 40)))
-        (vyo (rand-v! (make-typed-array 'f32 *unspecified* 2))))
-    (list mhw vho myw vyo)))
+        (vyo (rand-v! (make-typed-array 'f32 *unspecified* 2)))
+        (vxi (make-typed-array 'f32 *unspecified* 198)))
+    (list mhw vho myw vyo vxi)))
 
 ; Dsigmoid(x) = sigmoid(x) (1 - sigmoid(x))
 (define (sigmoid vyo)
@@ -22,52 +23,96 @@
                     (/ 1. (+ 1. (exp (- x)))))
               vyo))
 
-; gradient-descent
 ; calculate gradient GRAD(weight, output)
-(define (set-sigmoid-gradient! grad out)
+(define (set-sigmoid-gradient! grad net-out)
   (array-map! grad (lambda (x)
                      (let ((s (/ 1. (+ 1. (exp (- x))))))
                        (* s (- 1. s))))
-                   out))
+                   net-out))
 
-(define (gradient-descent vxi net grad alpha)
+; gradient-descent, return weight update in grads
+(define (gradient-descent-grads net vxi Vnew grads)
+  (match grads
+    ((gmhw gmyw)
   (match net
-    ((mhw vho myw vyo)
+    ((mhw vho myw vyo vxi)
      ;  mhw: (40 198)
      ;  vho: (40)
      ;  myw: (2 40)
-     ;  vyo: (2) #f32(0.495709627866745 0.46157199144363403)
-     ;  grad: (2) #f32(0.25 0.25)
-
+     ;  vyo: (2)
+     ;  grad: (2)
      ; propagate gradient backwards to output weights
-     (let ((go (make-typed-array 'f32 0. 40)))
+     (let ((go  (make-typed-array 'f32 0.  2))
+           (gho (make-typed-array 'f32 0. 40)))
+       (set-sigmoid-gradient! go Vnew)
        (match (array-dimensions myw)
          ((r c)
-           (do ((i 0 (+ i 1))) ((= i r))
-             (let ((g (array-ref grad i)))
-               (do ((j 0 (+ j 1))) ((= j c))
+           (do ((i 0 (+ i 1))) ((= i r)) ; i = each output neuron
+             (let ((g (array-ref go i)))
+               (do ((j 0 (+ j 1))) ((= j c)) ; j = each hidden output
                  (let ((w (array-ref myw i j))
+                       (gw (array-ref gmyw i j))
                        (o (array-ref vho j)))
-                   (array-set! myw (+ w (* alpha o g)) i j)
-                   ; populate gradient
-                   (array-set! go (+ (array-ref go i) (* g w)) i)
-                   ; each of the 40 neurons (i) in hidden layer, is connected to both neurons at output layer
+                   (array-set! gmyw (+ gw (* o g)) i j)
+                   ; populate gradient to hidden-output
+                   (array-set! gho (+ (array-ref gho j) (* g w)) j)
+                   ; each of the 40 neurons (j) in hidden layer, is connected to both neurons at output layer
                    ; therefore foreach neuron, we sum the gradient coming from the two neurons below
                    ))))))
-       (set-sigmoid-gradient! go go)
+       (set-sigmoid-gradient! gho gho)
        ; propagate gradient backwards to hidden weights
        (match (array-dimensions mhw)
          ((r c)
-           (do ((i 0 (+ i 1))) ((= i r))
-             (let ((g (array-ref go i)))
-               (do ((j 0 (+ j 1))) ((= j c))
+           (do ((i 0 (+ i 1))) ((= i r)) ; i = each hidden neuron
+             (let ((g (array-ref gho i)))
+               (do ((j 0 (+ j 1))) ((= j c)) ; j = each network-input
                  (let ((w (array-ref mhw i j))
+                       (gw (array-ref gmhw i j))
                        (o (array-ref vxi j)))
-                   (array-set! mhw (+ w (* alpha o g)) i j)))))))))))
+                   (array-set! gmhw (+ gw (* o g)) i j)))))))))))))
+
+; gradient-descent, return weight update in grads
+(define (gradient-descent net vxi tderr eligs alpha)
+  (match eligs
+    ((emhw emyw)
+  (match net
+    ((mhw vho myw vyo vxi)
+     ;  mhw: (40 198)
+     ;  vho: (40)
+     ;  myw: (2 40)
+     ;  vyo: (2)
+     ;  grad: (2)
+     ; propagate gradient backwards to output weights
+     (let ((go  (make-typed-array 'f32 0.  2))
+           (gho (make-typed-array 'f32 0. 40)))
+       (set-sigmoid-gradient! go tderr)
+       (match (array-dimensions myw)
+         ((r c)
+           (do ((i 0 (+ i 1))) ((= i r)) ; i = each output neuron
+             (let ((g (array-ref go i)))
+               (do ((j 0 (+ j 1))) ((= j c)) ; j = each hidden output
+                 (let ((w (array-ref myw i j))
+                       (e (array-ref emyw i j)))
+                   (array-set! myw (+ w (* alpha e g)) i j)
+                   ; populate gradient to hidden-output
+                   (array-set! gho (+ (array-ref gho j) (* g w)) j)
+                   ; each of the 40 neurons (j) in hidden layer, is connected to both neurons at output layer
+                   ; therefore foreach neuron, we sum the gradient coming from the two neurons below
+                   ))))))
+       (set-sigmoid-gradient! gho gho)
+       ; propagate gradient backwards to hidden weights
+       (match (array-dimensions mhw)
+         ((r c)
+           (do ((i 0 (+ i 1))) ((= i r)) ; i = each hidden neuron
+             (let ((g (array-ref gho i)))
+               (do ((j 0 (+ j 1))) ((= j c)) ; j = each network-input
+                 (let ((w (array-ref mhw i j))
+                       (e (array-ref emhw i j)))
+                   (array-set! mhw (+ w (* alpha e g)) i j)))))))))))))
 
 (define (net-run net input)
   (match net
-    ((mhw vho myw vyo)
+    ((mhw vho myw vyo vxi)
      (sgemv! 1. mhw CblasNoTrans input 0. vho)
      (sigmoid vho)
      (sgemv! 1. myw CblasNoTrans vho 0. vyo)
@@ -79,31 +124,31 @@
         (d2 (1+ (truncate (random 6 *rands*)))))
     (list d1 d2)))
 
-(define (best-path paths net out-idx)
-  (let ((bout -999)
+(define (policy-take-action bg net dices)
+  (let ((paths (bg-find-all-states bg dices))
+        (bout -999)
         (bpath #f)
         (bvxi (make-typed-array 'f32 *unspecified* 198))
         (vxi (make-typed-array 'f32 *unspecified* 198)))
     (loop-for path in paths do
       ;(format #t "  path: ~s~%" path)
       (let ((bg path))
-        (set-bg-input bg vxi #t)
+        (set-bg-input bg vxi)
         (net-run net vxi)
         (let ((out (cadddr net)))
           ; FIX: should we consider white(idx-0) > black(idx-1) ?
-          (if (> (array-ref out out-idx) bout) ; 0 is white's chance of winning, 1 is black
+          (if (> (array-ref out 0) bout)
               (begin
                 ;(format #t "  best-net-out: ~s~%" out)
-                (set! bout (array-ref out out-idx))
+                (set! bout (array-ref out 0))
                 (set! bpath path)
                 (array-map! bvxi (lambda (x) x) vxi))))))
     (if bpath ; if not terminate
-        (list bvxi bout bpath)
+        (begin
+          ; restore best-output to network (ie we keep this future)
+          (array-map! (car (cddddr net)) (lambda (x) x) bvxi)
+          bpath)
         #f)))
-
-(define (policy-take-action bg net dices)
-  (let ((paths (bg-find-all-states bg dices)))
-    (best-path paths net (if (bg-ply bg) 0 1))))
 
 (define (human-take-action bg dices)
   (let ((paths (bg-find-all-states bg dices))
@@ -155,140 +200,92 @@
       (= (bg-b-rem bg) 15))) ; black has won
 
 (define (get-reward bg)
-  ; we can make a move, see if the move has put us in an terminal position
+  ; assuming we can make a move, see if the move has put us in an terminal position
   (cond
     ; Until s' is terminal (bg2 is part of s')
     ((state-terminal? bg)
      (let ((ply (bg-ply bg))) ; who's turn it was, and receives the reward
        ; in terminal state, we get a reward of 1
-       (assert (= (if (bg-ply bg) (bg-w-rem bg) (bg-b-rem bg)) 15))
+       (assert (= (if (bg-ply bg) (bg-w-rem bg) (bg-b-rem bg)) 15) "get-reward, not terminal!")
        (list 1. #t)))
     (else
      (list 0. #f))))
 
-(define (run-tderr vxi net tderr Vold Vnew grad elig reward gamma gamma-lambda)
-  (let ((alpha 0.01))
-    ; calculate gradient GRAD(weight, output)
-    (set-sigmoid-gradient! grad Vnew)
+; Vold is the previous state-value, V(s), and Vnew is the next state-value, V(s')
+(define (run-tderr net Vold Vnew reward grads eligs gam lam)
+  (let ((alpha 0.01)
+        (tderr (make-typed-array 'f32 0. 2))
+        (vxi (car (cddddr net))))
+
+    ; calculate gradients GRAD(weight, output)
+    (gradient-descent-grads net vxi Vnew grads)
 
     ;---------------------------------------------
     ; update eligibility traces
-    ; elig  <- gamma_lambda * e + Grad_theta(V(s))
+    ; elig  <- gamma*lambda * elig + Grad_theta(V(s))
     ; z <- y*L* + Grad[V(s,w)]
-    ; FIX: elig för varje vikt i nätet? behöver vi vxi?
-    (array-map! elig (lambda (e g)
-                       (+ (* gamma-lambda e) g))
-                elig grad)
+    (do ((gradcons grads (cdr gradcons))
+         (eligcons eligs (cdr eligcons)))
+        ((eq? gradcons '()))
+      (let ((grad (car gradcons))
+            (elig (car eligcons)))
+        (array-map! elig (lambda (e g)
+                           (+ (* lam e) g))
+                    elig grad)))
 
     ;---------------------------------------------
     ; tderr <- r + gamma * V(s') - V(s)
-    (svvs*! tderr Vnew gamma)
+    (svvs*! tderr Vnew gam)
     (sv-! tderr tderr Vold)
     (array-map! tderr (lambda (x r) (+ x r)) tderr reward)
 
-    ; delta to update weights: w += alpha * tderr * grad * elig
-    (array-map! tderr (lambda (t g e) (* t g e)) tderr grad elig)
-
     ;---------------------------------------------
     ; update network weights
-    ; theta <- theta + alpha * tderr * elig
-    (gradient-descent vxi net tderr alpha)))
+    ; delta to update weights: w += alpha * tderr * elig
+    ; where elig contains diminished gradients of network activity
 
-(define (run-mcerr vxi net tderr Vold Vnew grad reward gamma gamma-lambda)
-  (let ((alpha 0.01))
-    ; calculate gradient GRAD(weight, output)
-    (set-sigmoid-gradient! grad Vnew)
+    (gradient-descent net vxi tderr eligs alpha)))
 
-    ;---------------------------------------------
-    ; tderr <- r + gamma * V(s') - V(s)
-    (svvs*! tderr Vnew gamma)
-    (sv-! tderr tderr Vold)
-    (array-map! tderr (lambda (x r) (+ x r)) tderr reward)
 
-    ; delta to update weights: w += alpha * tderr * grad
-    (array-map! tderr (lambda (t g) (* t g)) tderr grad)
+(define (run-ml-learn bg rl net terminal-state loser)
+  (let ((Vnew (cadddr net)))
+    (match (get-reward bg)
+      ((reward terminal-state)
+       ; sane state
+       (if loser
+           (assert (state-terminal? bg) "loser in non-terminal"))
+       (match rl
+         ((Vold grads eligs gam lam)
+          (let ((rewarr (make-typed-array 'f32 0. 2)))
+            (if (> reward 0)
+              (begin
+                (array-set! rewarr (if loser 0. 1.) 0)
+                (array-set! rewarr (if loser 1. 0.) 1)))
+            (run-tderr net Vold Vnew rewarr grads eligs gam lam)
+            ; update caches
+            (array-map! Vold (lambda (x) x) Vnew))))))))
 
-    ;---------------------------------------------
-    ; update network weights
-    ; theta <- theta + alpha * tderr
-    (gradient-descent vxi net tderr alpha)))
-
-; if loser, then we have to adjust last reward
-(define (learn-net net es tderr rl gamma lam loser ply who text)
-  (match rl
-    ((elig Vold grad)
-  (let ((n 1))
-    (loop-for e in es do
-      (match e
-        ((rewarr vxi Vold Vnew)
-         (if (and (= n 1) loser) ; adjust reward since we lost
-           (begin
-             ;(format #t "original reward: ~s ply: ~s who: ~a text: ~a~%" rewarr ply who text)
-             (array-set! rewarr 0. 0)
-             (array-set! rewarr 1. 1)))
-         (run-mcerr vxi net tderr Vold Vnew grad rewarr gamma (expt lam n))
-         (set! n (1+ n)))))))))
-
-(define (run-turn-ml bg net dices tderr rl es gamma gamma-lambda)
-  (match rl
-    ((elig Vold grad)
-  (let ((ply (bg-ply bg)))
-    ;(format #t "  run-turn ply=~a, dices=~s~%" ply dices)
-    (match (policy-take-action bg net dices)
-      (#f ; player can't move (example is all pieces are on the bar)
-       ; since we have no moves to consider/evaluate, we just yield to the other player
-       ;(format #t "  player (~a) cant move!~%" (bg-ply bg))
-       #f)
-      ((vxi best-out best-path)
-       (let ((bg2 best-path)
-             (Vnew (cadddr net)))
-         (set-bg-input bg vxi #t) ; net-output is stale, refresh it
-         (net-run net vxi)
-         (match (get-reward bg2)
-           ((reward terminal-state)
-            (let ((rewarr (make-typed-array 'f32 0. 2)))
-              (if (> reward 0)
-                (begin
-                  (array-set! rewarr 1. 0)
-                  (array-set! rewarr 0. 1)))
-              ; Vold is the previous state-value, V(s), and Vnew is the next state-value, V(s')
-              (set! es (cons (list rewarr vxi Vold Vnew) es))
-              (run-tderr vxi net tderr Vold Vnew grad elig rewarr gamma gamma-lambda))
-            ; caches
-            (array-map! Vold (lambda (x) x) Vnew)
-            (list bg2 terminal-state es))))))))))
+(define (run-turn-ml bg net dices)
+  (policy-take-action bg net dices))
 
 (define (run-turn-human bg dices)
-  (let ((ply (bg-ply bg)))
-    (match (human-take-action bg dices)
-      (#f ; player can't move (example is all pieces are on the bar)
-       ; since we have no moves to consider/evaluate, we just yield to the other player
-       #f)
-      (new-bg
-        (list new-bg (state-terminal? new-bg) '())))))
+  (human-take-action bg dices))
 
 (define (run-turn-style bg dices style)
-  (let ((ply (bg-ply bg)))
-    (match (style-take-action bg dices style)
-      (#f ; player can't move (example is all pieces are on the bar)
-       ; since we have no moves to consider/evaluate, we just yield to the other player
-       #f)
-      (new-bg
-        (list new-bg (state-terminal? new-bg) '())))))
+  (style-take-action bg dices style))
 
-(define (run-turn bg net dices tderr rl es gamma gamma-lambda)
-  (let ((ply (bg-ply bg)))
-    (cond
-     ((eq? net #:human) ; human type of neural-network controls player
-       (run-turn-human bg dices))
-     ((eq? net #:late) ; remove pieces as late as possible
-       (run-turn-style bg dices #:late))
-     ((eq? net #:early) ; remove pieces as soon as possible
-       (run-turn-style bg dices #:early))
-     ((eq? net #:random) ; make random moves
-       (run-turn-style bg dices #:random))
-     (else ; player is controlled by artificial type of neural-network
-       (run-turn-ml bg net dices tderr rl es gamma gamma-lambda)))))
+(define (run-turn bg net dices)
+  (cond
+   ((eq? net #:human) ; human type of neural-network controls player
+     (run-turn-human bg dices))
+   ((eq? net #:late) ; remove pieces as late as possible
+     (run-turn-style bg dices #:late))
+   ((eq? net #:early) ; remove pieces as soon as possible
+     (run-turn-style bg dices #:early))
+   ((eq? net #:random) ; make random moves
+     (run-turn-style bg dices #:random))
+   (else ; player is controlled by artificial type of neural-network
+     (run-turn-ml bg net dices))))
 
 (define (file-write-net file episode wnet bnet)
   (call-with-output-file file
@@ -301,32 +298,37 @@
       (format p "))~%")
       )))
 
-(define (make-rl)
-  (list (make-typed-array 'f32 *unspecified* 2) ; elig
-        (make-typed-array 'f32 0. 2) ; copy of output-layer
-        (make-typed-array 'f32 0. 2))) ; gradient
+; [Vold, grads, eligs, gam, lam]
+(define (make-rl gam lam)
+  (list (make-typed-array 'f32 0. 2) ; copy of output-layer, V(s)
+        ; gradients
+        (list (make-typed-array 'f32 *unspecified* 40 198)
+              (make-typed-array 'f32 *unspecified* 2 40))
+        ; eligibility-traces are kept as gradients of network:
+        (list (make-typed-array 'f32 *unspecified* 40 198)
+              (make-typed-array 'f32 *unspecified* 2 40))
+        gam lam))
 
 (define (rl-episode-clear rl)
   ; initialize eligibily traces to 0
   (match rl
-    ((elig vyo grad)
-     (array-map! elig (lambda (x) 0.) elig)
-     )))
+    ((Vold grads eligs gam lam)
+     (loop-for arr in grads do
+       (array-map! arr (lambda (x) 0.) arr))
+     (loop-for arr in eligs do
+       (array-map! arr (lambda (x) 0.) arr)))))
 
 (define* (run-tdgammon wnet bnet #:key episodes save)
   ; initialize theta, given by parameters wnet and bnet
-  (let ((gamma 0.9) ; td-gamma
-        (gamma-lambda 0.9) ; eligibility-trace decay
+  (let* ((gam 0.9) ; td-gamma
+        (lam 0.9) ; eligibility-trace decay
         (bg (setup-bg))
         (dices (roll-dices))
         ; eligibility-traces
-        (rlw (make-rl))
-        (rlb (make-rl))
-        (wes '())
-        (bes '())
+        (rlw (make-rl gam lam))
+        (rlb (make-rl gam lam))
         (wwin 0) (bwin 0)
         (terminal-state #f)
-        (tderr (make-typed-array 'f32 0. 2))
         (episodes-done #f))
     ; loop for each episode
     (do ((episode 0 (1+ episode)))
@@ -342,8 +344,6 @@
       (set-bg-ply! bg #t) ; whites turn
       (set! dices (roll-dices))
       (set! terminal-state #f)
-      (set! wes '())
-      (set! bes '())
       (rl-episode-clear rlw)
       (rl-episode-clear rlb)
       ; get initial action here
@@ -361,39 +361,38 @@
           ;     new state, s', consists of bg2 and new dice-roll
           ;     s =  { bg, dices }
           ;     s' = { best-bg, new-dice-roll }
-          (match (run-turn bg (if ply wnet bnet)
-                           dices tderr
-                           (if ply rlw rlb)
-                           (if ply wes bes)
-                           gamma gamma-lambda)
-            (#f 'ok) ; cant move
-            ((new-bg is-terminal-state new-w/b-es)
+          (match (run-turn bg (if ply wnet bnet) dices)
+            (#f ; player can't move (example is all pieces are on the bar)
+              ; since we have no moves to consider/evaluate, we just yield to the other player
+             (assert (not (state-terminal? bg)))
+             'ok)
+            (new-bg
+             (set! terminal-state (state-terminal? new-bg))
+             (if (not (symbol? (if ply wnet bnet))) ; ML-player
+               (begin
+                 ; learn winner network
+                 (run-ml-learn new-bg
+                               (if ply rlw rlb)
+                               (if ply wnet bnet)
+                               terminal-state #f)
+                 ; if in terminal-state, also let loser learn 
+                 (if terminal-state
+                   (run-ml-learn new-bg
+                                 (if ply rlb rlw)
+                                 (if ply bnet wnet)
+                                 terminal-state #t))))
              ; evolve state
              ; s <- s'
              (set! bg new-bg)
-             (set! terminal-state is-terminal-state)
              (cond
-              (is-terminal-state
-               (cond
-                ((= (bg-w-rem bg) 15)
-                 (set! wwin (+ wwin 1))
-                 ; at terminal-state go through all-steps and learn
-                 (if (list? wnet)
-                   (learn-net wnet new-w/b-es tderr rlw gamma gamma-lambda #f ply #t "white-win"))
-                 (if (list? bnet)
-                   (learn-net bnet bes tderr rlb gamma gamma-lambda #t ply #f "black-lose"))
-                 (format #t "### WHITE HAS WON!~%-----------------------------------~%"))
-                ((= (bg-b-rem bg) 15)
-                 (set! bwin (+ bwin 1))
-                 ; at terminal-state go through all-steps and learn
-                 (if (list? bnet)
-                   (learn-net bnet new-w/b-es tderr rlb gamma gamma-lambda #f ply #f "black-win"))
-                 (if (list? wnet)
-                   (learn-net wnet wes tderr rlw gamma gamma-lambda #t ply #t "white-lose"))
-                 (format #t "OOO BLACK HAS WON!~%-----------------------------------~%"))))
-              (else
-               (if ply (set! wes new-w/b-es) (set! bes new-w/b-es))))))
-          (set! dices (roll-dices)) ; also part of state
+              ((= (bg-w-rem bg) 15)
+               (set! wwin (+ wwin 1))
+               (format #t "### WHITE HAS WON!~%-----------------------------------~%"))
+              ((= (bg-b-rem bg) 15)
+               (set! bwin (+ bwin 1))
+               (format #t "OOO BLACK HAS WON!~%-----------------------------------~%")))))
+          ; s <- s'
+          (set! dices (roll-dices))
           (set-bg-ply! bg (not ply))
           ; bookkeeping
           ; ensure always 15 pieces is present on board+removed+bar
