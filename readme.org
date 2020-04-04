@@ -5,5 +5,9 @@
   | ENVFILE=./my-env.sh ./run.sh
 
 ** links
+   THE book on RL
    - http://incompleteideas.net/book/first/ebook/node108.html
+   Insightful about derivations from supervised-learning rule to td-learning,
+   and good stuff about eligibility-traces in hidden-layer networks
+   - https://web.stanford.edu/group/pdplab/pdphandbook/handbookch10.html
 
