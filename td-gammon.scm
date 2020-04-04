@@ -125,7 +125,9 @@
     (list d1 d2)))
 
 (define (policy-take-action bg net dices)
-  (let ((paths (bg-find-all-states bg dices))
+  (let ((paths (let ((lst (bg-find-all-states bg dices)))
+                 (if (bg-ply bg)
+                     lst (reverse lst))))
         (bout -999)
         (bpath #f)
         (bvxi (make-typed-array 'f32 *unspecified* 198))
