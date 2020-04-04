@@ -163,7 +163,7 @@
   (let ((paths (bg-find-all-states bg dices))
         (i 0))
     (cond
-      ((not (eq? paths '())) '()) ; no paths to take
+      ((eq? paths '()) #f) ; no paths to take
       (else
     (loop-for path in paths do
       (format #t "~a path: ~s~%" i path)
@@ -370,19 +370,19 @@
              'ok)
             (new-bg
              (set! terminal-state (state-terminal? new-bg))
-             (if (not (symbol? (if ply wnet bnet))) ; ML-player
-               (begin
+             (if (list? (if ply wnet bnet)) ; ML-player
                  ; learn winner network
                  (run-ml-learn new-bg
                                (if ply rlw rlb)
                                (if ply wnet bnet)
-                               terminal-state #f)
+                               terminal-state #f))
+             (if (list? (if ply bnet wnet)) ; ML-player
                  ; if in terminal-state, also let loser learn 
                  (if terminal-state
                    (run-ml-learn new-bg
                                  (if ply rlb rlw)
                                  (if ply bnet wnet)
-                                 terminal-state #t))))
+                                 terminal-state #t)))
              ; evolve state
              ; s <- s'
              (set! bg new-bg)
