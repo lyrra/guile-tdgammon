@@ -328,13 +328,10 @@
         (rlw (make-rl gam lam))
         (rlb (make-rl gam lam))
         (wwin 0) (bwin 0)
-        (terminal-state #f)
-        (episodes-done #f))
+        (terminal-state #f))
     ; loop for each episode
     (do ((episode 0 (1+ episode)))
-        (episodes-done)
-        ;((= episode 10))
-      (if (and episodes (>= episode episodes)) (set! episodes-done #t))
+        ((and episodes (> episode episodes)))
       ; save the network now and then
       (if (and save wnet (= (modulo episode 100) 0))
           (file-write-net (format #f "net-~a.txt" episode)
