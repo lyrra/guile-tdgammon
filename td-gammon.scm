@@ -202,7 +202,16 @@
       ((eq? style #:early)
        (car paths))
       ((eq? style #:late)
-       (car (last-pair paths)))))))
+       (car (last-pair paths)))
+      ((eq? style #:bar)
+       (let ((sel #f))
+         (loop-for path in paths do
+           (if (> (if (bg-ply bg)
+                      (bg-b-bar path)
+                      (bg-w-bar path))
+                  0)
+               (set! sel path)))
+         (or sel (car (last-pair paths)))))))))
 
 (define (state-terminal? bg)
   (or (= (bg-w-rem bg) 15) ; white has won
@@ -293,6 +302,8 @@
      (run-turn-style bg dices #:early))
    ((eq? net #:random) ; make random moves
      (run-turn-style bg dices #:random))
+   ((eq? net #:bar) ; try to bar opponents pieces
+     (run-turn-style bg dices #:bar))
    (else ; player is controlled by artificial type of neural-network
      (run-turn-ml bg net dices))))
 
