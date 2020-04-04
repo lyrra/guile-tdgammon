@@ -29,6 +29,8 @@
           (set! wnet #:early))
       (if (string-contains (car args) "--bar")
           (set! wnet #:bar))
+      (if (string-contains (car args) "--safe")
+          (set! wnet #:safe))
       (if (string-contains (car args) "--swap")
           (let ((tmp wnet))
             (set! wnet bnet)

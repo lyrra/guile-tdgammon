@@ -211,7 +211,22 @@
                       (bg-w-bar path))
                   0)
                (set! sel path)))
-         (or sel (car (last-pair paths)))))))))
+         (or sel (car (last-pair paths)))))
+      ((eq? style #:safe)
+       (let ((sels (filter (lambda (path)
+                             (let ((arr (if (bg-ply bg)
+                                            (bg-w-pts path)
+                                            (bg-b-pts path)))
+                                   (safe #t))
+                               (array-for-each (lambda (x)
+                                                 (if (= x 1) ; exposed position
+                                                     (set! safe #f)))
+                                               arr)
+                               safe))
+                           paths)))
+         (if (eq? sels '())
+           (car (last-pair paths))
+           (car (last-pair sels)))))))))
 
 (define (state-terminal? bg)
   (or (= (bg-w-rem bg) 15) ; white has won
@@ -304,6 +319,8 @@
      (run-turn-style bg dices #:random))
    ((eq? net #:bar) ; try to bar opponents pieces
      (run-turn-style bg dices #:bar))
+   ((eq? net #:safe) ; avoid exposed positions
+     (run-turn-style bg dices #:safe))
    (else ; player is controlled by artificial type of neural-network
      (run-turn-ml bg net dices))))
 
@@ -347,7 +364,7 @@
         (terminal-state #f))
     ; loop for each episode
     (do ((episode 0 (1+ episode)))
-        ((and episodes (> episode episodes)))
+        ((and episodes (>= episode episodes)))
       ; save the network now and then
       (if (and save wnet (= (modulo episode 100) 0))
           (file-write-net (format #f "net-~a.txt" episode)
