@@ -11,112 +11,119 @@
 
 (define (make-net)
   (let ((mhw (rand-m! (make-typed-array 'f32 *unspecified* 40 198)))
+        (vhz (rand-v! (make-typed-array 'f32 *unspecified* 40)))
         (vho (rand-v! (make-typed-array 'f32 *unspecified* 40)))
         (myw (rand-m! (make-typed-array 'f32 *unspecified* 2 40)))
+        (vyz (rand-v! (make-typed-array 'f32 *unspecified* 2)))
         (vyo (rand-v! (make-typed-array 'f32 *unspecified* 2)))
         (vxi (make-typed-array 'f32 *unspecified* 198)))
-    (list mhw vho myw vyo vxi)))
+    (list mhw vhz vho myw vyz vyo vxi)))
+
+(define (net-vyo net) (list-ref net 5))
+(define (net-vxi net) (list-ref net 6))
+
+(define (sigmoid z)
+  (/ 1. (+ 1. (exp (- z)))))
+
+(define (sigmoid-grad z)
+  (let ((a (sigmoid z)))
+    (* a (- 1 a))))
 
 ; Dsigmoid(x) = sigmoid(x) (1 - sigmoid(x))
-(define (sigmoid vyo)
-  (array-map! vyo (lambda (x)
-                    (/ 1. (+ 1. (exp (- x)))))
-              vyo))
+(define (array-sigmoid src dst)
+  (array-map! dst (lambda (z) (sigmoid z))
+              src))
 
 ; calculate gradient GRAD(weight, output)
-(define (set-sigmoid-gradient! grad net-out)
-  (array-map! grad (lambda (x)
-                     (let ((s (/ 1. (+ 1. (exp (- x))))))
-                       (* s (- 1. s))))
-                   net-out))
+(define (set-sigmoid-gradient! grad netz)
+  (array-map! grad (lambda (z) (sigmoid-grad z))
+                   netz))
 
 ; gradient-descent, return weight update in grads
-(define (gradient-descent-grads net vxi Vnew grads)
-  (match grads
-    ((gmhw gmyw)
-  (match net
-    ((mhw vho myw vyo vxi)
-     ;  mhw: (40 198)
-     ;  vho: (40)
-     ;  myw: (2 40)
-     ;  vyo: (2)
-     ;  grad: (2)
-     ; propagate gradient backwards to output weights
-     (let ((go  (make-typed-array 'f32 0.  2))
-           (gho (make-typed-array 'f32 0. 40)))
-       (set-sigmoid-gradient! go Vnew)
-       (match (array-dimensions myw)
-         ((r c)
-           (do ((i 0 (+ i 1))) ((= i r)) ; i = each output neuron
-             (let ((g (array-ref go i)))
-               (do ((j 0 (+ j 1))) ((= j c)) ; j = each hidden output
-                 (let ((w (array-ref myw i j))
-                       (gw (array-ref gmyw i j))
-                       (o (array-ref vho j)))
-                   (array-set! gmyw (+ gw (* o g)) i j)
-                   ; populate gradient to hidden-output
-                   (array-set! gho (+ (array-ref gho j) (* g w)) j)
-                   ; each of the 40 neurons (j) in hidden layer, is connected to both neurons at output layer
-                   ; therefore foreach neuron, we sum the gradient coming from the two neurons below
-                   ))))))
-       (set-sigmoid-gradient! gho gho)
-       ; propagate gradient backwards to hidden weights
-       (match (array-dimensions mhw)
-         ((r c)
-           (do ((i 0 (+ i 1))) ((= i r)) ; i = each hidden neuron
-             (let ((g (array-ref gho i)))
-               (do ((j 0 (+ j 1))) ((= j c)) ; j = each network-input
-                 (let ((w (array-ref mhw i j))
-                       (gw (array-ref gmhw i j))
-                       (o (array-ref vxi j)))
-                   (array-set! gmhw (+ gw (* o g)) i j)))))))))))))
-
-; gradient-descent, return weight update in grads
-(define (gradient-descent net vxi tderr eligs alpha)
+(define (update-eligibility-traces net eligs)
   (match eligs
-    ((emhw emyw)
+    ((emhw0 emhw1 emyw0)
   (match net
-    ((mhw vho myw vyo vxi)
-     ;  mhw: (40 198)
-     ;  vho: (40)
-     ;  myw: (2 40)
-     ;  vyo: (2)
-     ;  grad: (2)
-     ; propagate gradient backwards to output weights
+    ((mhw vhz vho myw vyz vyo vxi)
      (let ((go  (make-typed-array 'f32 0.  2))
-           (gho (make-typed-array 'f32 0. 40)))
-       (set-sigmoid-gradient! go tderr)
+           (gho (make-typed-array 'f32 0. 2 40)))
+       (set-sigmoid-gradient! go vyz)
        (match (array-dimensions myw)
          ((r c)
            (do ((i 0 (+ i 1))) ((= i r)) ; i = each output neuron
              (let ((g (array-ref go i)))
                (do ((j 0 (+ j 1))) ((= j c)) ; j = each hidden output
-                 (let ((w (array-ref myw i j))
-                       (e (array-ref emyw i j)))
-                   (array-set! myw (+ w (* alpha e g)) i j)
-                   ; populate gradient to hidden-output
-                   (array-set! gho (+ (array-ref gho j) (* g w)) j)
-                   ; each of the 40 neurons (j) in hidden layer, is connected to both neurons at output layer
-                   ; therefore foreach neuron, we sum the gradient coming from the two neurons below
-                   ))))))
-       (set-sigmoid-gradient! gho gho)
-       ; propagate gradient backwards to hidden weights
+                 (let* ((o (array-ref vho j))
+                        (w (array-ref myw i j))
+                        (e (array-ref emyw0 i j)))
+              (if (or (> (* g o) 10) (< (* g o) -10)) ; absurd
+                  (begin
+                   (format #t "emyw0: absurd elig update> e=~f (~a * ~a)~%" (* g o) g o)
+                  (exit)))
+                   (array-set! emyw0 (+ e (* g o)) i j)
+                   (array-set! gho (+ (array-ref gho i j) (* g w)) i j)))))))
+
+       ; gradient through hidden-ouput sigmoid
+       ; FIX: make set-sigmoid-gradient! general enough
+       (match (array-dimensions myw)
+         ((r c)
+          (do ((i 0 (+ i 1))) ((= i r)) ; i = each output neuron
+          (do ((j 0 (+ j 1))) ((= j c)) ; j = each hidden output
+            (let ((g (array-ref gho i j))
+                  (z (array-ref vhz j)))
+              (array-set! gho (* g (sigmoid-grad z)) i j))))))
+
        (match (array-dimensions mhw)
          ((r c)
-           (do ((i 0 (+ i 1))) ((= i r)) ; i = each hidden neuron
-             (let ((g (array-ref gho i)))
+           (do ((k 0 (+ k 1))) ((= k 2)) ; i = each output neuron
+             (do ((i 0 (+ i 1))) ((= i r)) ; i = each hidden neuron
                (do ((j 0 (+ j 1))) ((= j c)) ; j = each network-input
-                 (let ((w (array-ref mhw i j))
-                       (e (array-ref emhw i j)))
-                   (array-set! mhw (+ w (* alpha e g)) i j)))))))))))))
+                 (let* ((g (array-ref gho k i))
+                        (x (array-ref vxi j))
+                        (ev (if (= k 0) emhw0 emhw1))
+                        (e (array-ref ev i j)))
+              (if (or (> (* g x) 10) (< (* g x) -10)) ; absurd
+                  (begin
+                   (format #t "emhw0/1: absurd elig update> e=~f (~a * ~a)~%" (* g x) g x)
+                  (exit)))
+                   (array-set! ev (+ e (* g x)) i j)))))))))))))
+
+; gradient-descent, return weight update in grads
+(define (update-weights net alpha tderr eligs)
+  (match eligs
+    ((emhw0 emhw1 emyw0)
+  (match net
+    ((mhw vhz vho myw vyz vyo vxi)
+     ;----------------------------------------
+     (match (array-dimensions myw)
+       ((r c)
+        (do ((i 0 (+ i 1))) ((= i r)) ; i = each output neuron
+          (let ((tde (array-ref tderr i)))
+          (do ((j 0 (+ j 1))) ((= j c)) ; j = each hidden output
+            (let ((w (array-ref myw i j))
+                  (e (array-ref emyw0 i j)))
+              (array-set! myw (+ w (* alpha e tde)) i j)
+              (if (or (> w 10) (< w -10)) ; absurd
+                  (begin
+                   (format #t "absurd weight update> w=~f, e=~f~%" w e)
+                  (exit)))))))))
+     ; propagate gradient backwards to hidden weights
+     (match (array-dimensions mhw)
+       ((r c)
+        (do ((i 0 (+ i 1))) ((= i r)) ; i = each hidden neuron
+          (do ((j 0 (+ j 1))) ((= j c)) ; j = each network-input
+            (let ((w (array-ref mhw i j))
+                  (e (+ (* (array-ref tderr 0) (array-ref emhw0 i j))
+                        (* (array-ref tderr 0) (array-ref emhw0 i j)))))
+              (array-set! mhw (+ w (* alpha e)) i j)))))))))))
 
 (define (net-run net input)
   (match net
-    ((mhw vho myw vyo vxi)
-     (sgemv! 1. mhw CblasNoTrans input 0. vho)
-     (sigmoid vho)
-     (sgemv! 1. myw CblasNoTrans vho 0. vyo)
-     (sigmoid vyo)
+    ((mhw vhz vho myw vyz vyo vxi)
+     (sgemv! 1. mhw CblasNoTrans input 0. vhz)
+     (array-sigmoid vhz vho)
+     (sgemv! 1. myw CblasNoTrans vho 0. vyz)
+     (array-sigmoid vyz vyo)
      #f)))
 
 (define (roll-dices)
@@ -137,7 +144,7 @@
       (let ((bg path))
         (set-bg-input bg vxi)
         (net-run net vxi)
-        (let ((out (cadddr net)))
+        (let ((out (net-vyo net)))
           ; FIX: should we consider white(idx-0) > black(idx-1) ?
           (if (> (array-ref out 0) bout)
               (begin
@@ -148,7 +155,7 @@
     (if bpath ; if not terminate
         (begin
           ; restore best-output to network (ie we keep this future)
-          (array-map! (car (cddddr net)) (lambda (x) x) bvxi)
+          (array-map! (net-vxi net) (lambda (x) x) bvxi)
           bpath)
         #f)))
 
@@ -214,56 +221,56 @@
      (list 0. #f))))
 
 ; Vold is the previous state-value, V(s), and Vnew is the next state-value, V(s')
-(define (run-tderr net Vold Vnew reward grads eligs gam lam)
-  (let ((alpha 0.01)
+(define (run-tderr net Vold reward eligs gam lam terminal-state)
+  (let ((Vnew (net-vyo net))
+        (alpha 0.01)
         (tderr (make-typed-array 'f32 0. 2))
-        (vxi (car (cddddr net))))
-
-    ; calculate gradients GRAD(weight, output)
-    (gradient-descent-grads net vxi Vnew grads)
+        (vxi (net-vxi net)))
 
     ;---------------------------------------------
-    ; update eligibility traces
-    ; elig  <- gamma*lambda * elig + Grad_theta(V(s))
-    ; z <- y*L* + Grad[V(s,w)]
-    (do ((gradcons grads (cdr gradcons))
-         (eligcons eligs (cdr eligcons)))
-        ((eq? gradcons '()))
-      (let ((grad (car gradcons))
-            (elig (car eligcons)))
-        (array-map! elig (lambda (e g)
-                           (+ (* lam e) g))
-                    elig grad)))
-
-    ;---------------------------------------------
-    ; tderr <- r + gamma * V(s') - V(s)
-    (svvs*! tderr Vnew gam)
-    (sv-! tderr tderr Vold)
-    (array-map! tderr (lambda (x r) (+ x r)) tderr reward)
+    (cond
+     (terminal-state
+      (sv-! tderr reward Vold)) ; reward - V(s)
+     (else
+      ; tderr <- r + gamma * V(s') - V(s)
+      (svvs*! tderr Vnew gam) ; gamma * V(s')
+      (sv-! tderr tderr Vold) ; gamma * V(s') - V(s)
+      (array-map! tderr (lambda (x r) (+ x r)) tderr reward)))
 
     ;---------------------------------------------
     ; update network weights
     ; delta to update weights: w += alpha * tderr * elig
     ; where elig contains diminished gradients of network activity
+    ; AEG: alpha * tderr * eligs
+    (update-weights net alpha tderr eligs)
 
-    (gradient-descent net vxi tderr eligs alpha)))
-
+    ;---------------------------------------------
+    ; discount eligibility traces
+    ; update eligibility traces
+    ; elig  <- gamma*lambda * elig + Grad_theta(V(s))
+    ; z <- y*L* + Grad[V(s,w)]
+    (loop-for elig in eligs do
+      (array-map! elig (lambda (e) (* e lam)) elig))
+    (update-eligibility-traces net eligs)))
 
 (define (run-ml-learn bg rl net terminal-state loser)
-  (let ((Vnew (cadddr net)))
+  ; need to rerun network to get fresh output at each layer
+  ; needed by backprop
+  (net-run net (net-vxi net)) ; uses the best-path as input
+  (let ((Vnew (net-vyo net)))
     (match (get-reward bg)
       ((reward terminal-state)
        ; sane state
        (if loser
            (assert (state-terminal? bg) "loser in non-terminal"))
        (match rl
-         ((Vold grads eligs gam lam)
+         ((Vold eligs gam lam)
           (let ((rewarr (make-typed-array 'f32 0. 2)))
             (if (> reward 0)
               (begin
                 (array-set! rewarr (if loser 0. 1.) 0)
                 (array-set! rewarr (if loser 1. 0.) 1)))
-            (run-tderr net Vold Vnew rewarr grads eligs gam lam)
+            (run-tderr net Vold rewarr eligs gam lam terminal-state)
             ; update caches
             (array-map! Vold (lambda (x) x) Vnew))))))))
 
@@ -300,23 +307,19 @@
       (format p "))~%")
       )))
 
-; [Vold, grads, eligs, gam, lam]
+; [Vold, eligs, gam, lam]
 (define (make-rl gam lam)
-  (list (make-typed-array 'f32 0. 2) ; copy of output-layer, V(s)
-        ; gradients
-        (list (make-typed-array 'f32 *unspecified* 40 198)
-              (make-typed-array 'f32 *unspecified* 2 40))
-        ; eligibility-traces are kept as gradients of network:
-        (list (make-typed-array 'f32 *unspecified* 40 198)
-              (make-typed-array 'f32 *unspecified* 2 40))
+  (list (make-typed-array 'f32 0. 2) ; Vold
+        ; eligibility traces, 0-1 is index in output-layer
+        (list (make-typed-array 'f32 *unspecified* 40 198) ; mhw-0
+              (make-typed-array 'f32 *unspecified* 40 198) ; mhw-1
+              (make-typed-array 'f32 *unspecified* 2 40))  ; myw-0
         gam lam))
 
 (define (rl-episode-clear rl)
   ; initialize eligibily traces to 0
   (match rl
-    ((Vold grads eligs gam lam)
-     (loop-for arr in grads do
-       (array-map! arr (lambda (x) 0.) arr))
+    ((Vold eligs gam lam)
      (loop-for arr in eligs do
        (array-map! arr (lambda (x) 0.) arr)))))
 
