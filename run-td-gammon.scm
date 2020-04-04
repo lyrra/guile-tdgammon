@@ -14,6 +14,7 @@
          (bnet (make-net))
          (measure #f)
          (episodes #f)
+         (verbose #f)
          ; ---- debug stuff ----
          (profiling #f))
     (do ((args (command-line) (cdr args)))
@@ -43,6 +44,8 @@
           (set! measure (substring (car args) 10)))
       (if (string-contains (car args) "--episodes=")
           (set! episodes (string->number (substring (car args) 11))))
+      (if (string-contains (car args) "--verbose")
+          (set! *verbose* #t))
       (if (string-contains (car args) "--profiling")
           (set! profiling #t)))
 
@@ -51,7 +54,7 @@
                     (measure
                      (run-tdgammon-measure measure #:episodes episodes))
                     (else
-                     (run-tdgammon wnet bnet #:save #t #:episodes episodes))))))
+                     (run-tdgammon wnet bnet #:save #t #:episodes episodes #:verbose verbose))))))
       (if profiling
           (statprof thunk)
           (thunk)))))

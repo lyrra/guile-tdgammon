@@ -6,7 +6,7 @@
         (let ((x (read p)))
           (set! net
                 (car (cdr (if which (caddr x) (cadddr x))))))))
-    (format #t "loaded network!~%")
+    (LLL "loaded network!~%")
     net))
 
 (define (make-net)
@@ -140,7 +140,7 @@
         (bvxi (make-typed-array 'f32 *unspecified* 198))
         (vxi (make-typed-array 'f32 *unspecified* 198)))
     (loop-for path in paths do
-      ;(format #t "  path: ~s~%" path)
+      ;(LLL "  path: ~s~%" path)
       (let ((bg path))
         (set-bg-input bg vxi)
         (net-run net vxi)
@@ -148,7 +148,7 @@
           ; FIX: should we consider white(idx-0) > black(idx-1) ?
           (if (> (array-ref out 0) bout)
               (begin
-                ;(format #t "  best-net-out: ~s~%" out)
+                ;(LLL "  best-net-out: ~s~%" out)
                 (set! bout (array-ref out 0))
                 (set! bpath path)
                 (array-map! bvxi (lambda (x) x) vxi))))))
@@ -351,7 +351,7 @@
      (loop-for arr in eligs do
        (array-map! arr (lambda (x) 0.) arr)))))
 
-(define* (run-tdgammon wnet bnet #:key episodes save)
+(define* (run-tdgammon wnet bnet #:key episodes save verbose)
   ; initialize theta, given by parameters wnet and bnet
   (let* ((gam 0.9) ; td-gamma
         (lam 0.9) ; eligibility-trace decay
@@ -381,11 +381,11 @@
       (do ((step 0 (1+ step)))
           (terminal-state)
         (let ((ply (bg-ply bg)))
-          (format #t "~a.~a: [~a/~a] dices: ~s w/b-turn: ~a bar:[~a,~a] rem:[~a,~a]~%"
+          (LLL "~a.~a: [~a/~a] dices: ~s w/b-turn: ~a bar:[~a,~a] rem:[~a,~a]~%"
                   episode step wwin bwin dices (bg-ply bg)
                   (bg-w-bar bg) (bg-b-bar bg)
                   (bg-w-rem bg) (bg-b-rem bg))
-          (bg-print-board bg)
+          (if *verbose* (bg-print-board bg))
           ; a <- pi(s)  ; set a to action given by policy for s
           ; Take action a, observe r and next state s'
           ;     new state, s', consists of bg2 and new dice-roll
@@ -417,10 +417,10 @@
              (cond
               ((= (bg-w-rem bg) 15)
                (set! wwin (+ wwin 1))
-               (format #t "### WHITE HAS WON!~%-----------------------------------~%"))
+               (format #t "~a.~a winner:WHITE [~a,~a]~%" episode step wwin bwin))
               ((= (bg-b-rem bg) 15)
                (set! bwin (+ bwin 1))
-               (format #t "OOO BLACK HAS WON!~%-----------------------------------~%")))))
+               (format #t "~a.~a winner:BLACK [~a,~a]~%" episode step wwin bwin)))))
           ; s <- s'
           (set! dices (roll-dices))
           (set-bg-ply! bg (not ply))
