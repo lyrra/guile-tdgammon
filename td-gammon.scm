@@ -424,9 +424,10 @@
 
 (define* (run-tdgammon-measure file #:key episodes)
   (let* ((bnet (file-load-net file #f))
-         (play-random (run-tdgammon #:random bnet #:episodes (or episodes 100) #:save #f))
-         (play-early  (run-tdgammon #:early  bnet #:episodes (or episodes 100) #:save #f))
-         (play-late   (run-tdgammon #:late   bnet #:episodes (or episodes 100) #:save #f))
+         (play-random (run-tdgammon #:random bnet #:episodes (or episodes 25) #:save #f))
+         (play-early  (run-tdgammon #:early  bnet #:episodes (or episodes 25) #:save #f))
+         (play-late   (run-tdgammon #:late   bnet #:episodes (or episodes 25) #:save #f))
+         (play-bar    (run-tdgammon #:bar    bnet #:episodes (or episodes 25) #:save #f))
          (totwwin 0) (totbwin 0))
     ; sum . zip
     (set! totwwin (+ totwwin (car play-random)))
@@ -435,4 +436,9 @@
     (set! totbwin (+ totbwin (cadr play-early)))
     (set! totwwin (+ totwwin (car play-late)))
     (set! totbwin (+ totbwin (cadr play-late)))
-    (format #t "RESULT: ~a,~a~%" totwwin totbwin)))
+    (format #t "RESULT: ~a,~a,~a,~a,~a,~a,~a,~a,~a,~a~%"
+            totwwin totbwin
+            (car play-random) (cadr play-random)
+            (car play-early)  (cadr play-early)
+            (car play-late)   (cadr play-late)
+            (car play-bar)   (cadr play-bar))))
