@@ -70,11 +70,9 @@
 (define (pts-ply bg)
   (let  ((arr (bg-w-pts bg))
          (brr (bg-b-pts bg)))
-    (if (not (bg-ply bg)) ; black's move, swap
-        (let ((tmp arr))
-          (set! arr brr)
-          (set! brr tmp)))
-    (list arr brr)))
+    (if (bg-ply bg)
+      (list arr brr)
+      (list brr arr))))
 
 (define (bg-print-board bg)
   (let ((old-ply (bg-ply bg)))
@@ -213,8 +211,7 @@
             paths)))))))))
 
 (define (bg-find-all-states bg dices)
-  (let ((ply (bg-ply bg))
-        (d1 (car dices))
+  (let ((d1 (car dices))
         (d2 (cadr dices)))
     ;(format #t "  find-all-states ply:~a dice: [~a,~a]~%" ply d1 d2)
     ; scan all possible moves in 'arr' using dices d1 and d2
