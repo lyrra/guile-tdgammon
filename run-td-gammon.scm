@@ -7,6 +7,7 @@
 (load "common.scm")
 (load "mat.scm")
 (load "net.scm")
+(load "rl.scm")
 (load "backgammon.scm")
 (load "td-gammon.scm")
 
