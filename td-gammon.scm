@@ -442,11 +442,11 @@
 
 (define* (run-tdgammon-measure file #:key episodes thread)
   (let* ((bnet (file-load-net file #f))
-         (play-random (run-tdgammon #:random bnet #:episodes (or episodes 25) #:start-episode 0 #:save #f))
-         (play-early  (run-tdgammon #:early  bnet #:episodes (or episodes 25) #:start-episode 0 #:save #f))
-         (play-late   (run-tdgammon #:late   bnet #:episodes (or episodes 25) #:start-episode 0 #:save #f))
-         (play-bar    (run-tdgammon #:bar    bnet #:episodes (or episodes 25) #:start-episode 0 #:save #f))
-         (play-safe   (run-tdgammon #:safe   bnet #:episodes (or episodes 25) #:start-episode 0 #:save #f))
+         (play-random (run-tdgammon #:random bnet #:episodes (or episodes 25) #:start-episode 0 #:save #f #:thread thread))
+         (play-early  (run-tdgammon #:early  bnet #:episodes (or episodes 25) #:start-episode 0 #:save #f #:thread thread))
+         (play-late   (run-tdgammon #:late   bnet #:episodes (or episodes 25) #:start-episode 0 #:save #f #:thread thread))
+         (play-bar    (run-tdgammon #:bar    bnet #:episodes (or episodes 25) #:start-episode 0 #:save #f #:thread thread))
+         (play-safe   (run-tdgammon #:safe   bnet #:episodes (or episodes 25) #:start-episode 0 #:save #f #:thread thread))
          (totwwin 0) (totbwin 0))
     ; sum . zip
     (set! totwwin (+ totwwin (car play-random)))
