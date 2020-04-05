@@ -1,3 +1,4 @@
+(use-modules (ice-9 threads))
 (use-modules (statprof))
 
 (import (srfi srfi-1) (ice-9 match) (srfi srfi-8) (srfi srfi-9))
@@ -16,6 +17,8 @@
          (episodes #f)
          (verbose #f)
          ; ---- debug stuff ----
+         (threads 1)
+         (num-threads (length (all-threads))) ; KLUDGY
          (profiling #f))
     (do ((args (command-line) (cdr args)))
         ((eq? args '()))
@@ -47,16 +50,31 @@
       (if (string-contains (car args) "--verbose")
           (set! *verbose* #t))
       (if (string-contains (car args) "--profiling")
-          (set! profiling #t)))
+          (set! profiling #t))
+      (if (string-contains (car args) "--threads=")
+          (set! threads (string->number (substring (car args) 10)))))
 
-    (let ((thunk (lambda ()
-                   (cond
-                    (measure
-                     (run-tdgammon-measure measure #:episodes episodes))
-                    (else
-                     (run-tdgammon wnet bnet #:save #t #:episodes episodes #:verbose verbose))))))
-      (if profiling
-          (statprof thunk)
-          (thunk)))))
+    (do ((i 0 (+ i 1)))
+        ((> i threads))
+      (let ((thunk (lambda ()
+                     (format #t "Starting thread ~a/~a~%" i threads)
+                     (cond
+                      (measure
+                       (run-tdgammon-measure measure #:episodes episodes #:thread i))
+                      (else
+                       (run-tdgammon wnet bnet #:save #t #:episodes episodes #:verbose verbose #:thread i))))))
+        (if (= threads 1)
+            ; only do profiling if one threads is used
+            (if profiling
+                (statprof thunk)
+                (thunk))
+            (call-with-new-thread thunk))))
+    (if (> threads 1)
+        (begin
+          (format #t "All threads are started ~a~%" threads)
+          (do ()
+              ((= (length (all-threads)) num-threads))
+            (format #t "current threads: ~a~%" (length (all-threads)))
+            (sleep 10))))))
 
 (main)

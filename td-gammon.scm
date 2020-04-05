@@ -351,7 +351,7 @@
      (loop-for arr in eligs do
        (array-map! arr (lambda (x) 0.) arr)))))
 
-(define* (run-tdgammon wnet bnet #:key episodes save verbose)
+(define* (run-tdgammon wnet bnet #:key episodes save verbose thread)
   ; initialize theta, given by parameters wnet and bnet
   (let* ((gam 0.9) ; td-gamma
         (lam 0.9) ; eligibility-trace decay
@@ -367,7 +367,7 @@
         ((and episodes (>= episode episodes)))
       ; save the network now and then
       (if (and save wnet (= (modulo episode 100) 0))
-          (file-write-net (format #f "net-~a.txt" episode)
+          (file-write-net (format #f "~a-net-~a.txt" thread episode)
                           episode wnet bnet))
       ; set s to initial state of episode
       (set! bg (setup-bg))
@@ -381,8 +381,8 @@
       (do ((step 0 (1+ step)))
           (terminal-state)
         (let ((ply (bg-ply bg)))
-          (LLL "~a.~a: [~a/~a] dices: ~s w/b-turn: ~a bar:[~a,~a] rem:[~a,~a]~%"
-                  episode step wwin bwin dices (bg-ply bg)
+          (LLL "~a.~a.~a: [~a/~a] dices: ~s w/b-turn: ~a bar:[~a,~a] rem:[~a,~a]~%"
+                  thread episode step wwin bwin dices (bg-ply bg)
                   (bg-w-bar bg) (bg-b-bar bg)
                   (bg-w-rem bg) (bg-b-rem bg))
           (if *verbose* (bg-print-board bg))
@@ -417,10 +417,10 @@
              (cond
               ((= (bg-w-rem bg) 15)
                (set! wwin (+ wwin 1))
-               (format #t "~a.~a winner:WHITE [~a,~a]~%" episode step wwin bwin))
+               (format #t "~a.~a.~a winner:WHITE [~a,~a]~%" thread episode step wwin bwin))
               ((= (bg-b-rem bg) 15)
                (set! bwin (+ bwin 1))
-               (format #t "~a.~a winner:BLACK [~a,~a]~%" episode step wwin bwin)))))
+               (format #t "~a.~a.~a winner:BLACK [~a,~a]~%" thread episode step wwin bwin)))))
           ; s <- s'
           (set! dices (roll-dices))
           (set-bg-ply! bg (not ply))
@@ -439,7 +439,7 @@
             ))))
     (list wwin bwin)))
 
-(define* (run-tdgammon-measure file #:key episodes)
+(define* (run-tdgammon-measure file #:key episodes thread)
   (let* ((bnet (file-load-net file #f))
          (play-random (run-tdgammon #:random bnet #:episodes (or episodes 25) #:save #f))
          (play-early  (run-tdgammon #:early  bnet #:episodes (or episodes 25) #:save #f))
