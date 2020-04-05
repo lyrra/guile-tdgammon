@@ -351,7 +351,7 @@
      (loop-for arr in eligs do
        (array-map! arr (lambda (x) 0.) arr)))))
 
-(define* (run-tdgammon wnet bnet #:key episodes save verbose thread)
+(define* (run-tdgammon wnet bnet #:key episodes start-episode save verbose thread)
   ; initialize theta, given by parameters wnet and bnet
   (let* ((gam 0.9) ; td-gamma
         (lam 0.9) ; eligibility-trace decay
@@ -367,8 +367,9 @@
         ((and episodes (>= episode episodes)))
       ; save the network now and then
       (if (and save wnet (= (modulo episode 100) 0))
-          (file-write-net (format #f "~a-net-~a.txt" thread episode)
-                          episode wnet bnet))
+          (file-write-net (format #f "~a-net-~a.txt" thread
+                                  (+ (or start-episode 0) episode))
+                          (+ (or start-episode 0) episode) wnet bnet))
       ; set s to initial state of episode
       (set! bg (setup-bg))
       (set-bg-ply! bg #t) ; whites turn
@@ -441,11 +442,11 @@
 
 (define* (run-tdgammon-measure file #:key episodes thread)
   (let* ((bnet (file-load-net file #f))
-         (play-random (run-tdgammon #:random bnet #:episodes (or episodes 25) #:save #f))
-         (play-early  (run-tdgammon #:early  bnet #:episodes (or episodes 25) #:save #f))
-         (play-late   (run-tdgammon #:late   bnet #:episodes (or episodes 25) #:save #f))
-         (play-bar    (run-tdgammon #:bar    bnet #:episodes (or episodes 25) #:save #f))
-         (play-safe   (run-tdgammon #:safe   bnet #:episodes (or episodes 25) #:save #f))
+         (play-random (run-tdgammon #:random bnet #:episodes (or episodes 25) #:start-episode 0 #:save #f))
+         (play-early  (run-tdgammon #:early  bnet #:episodes (or episodes 25) #:start-episode 0 #:save #f))
+         (play-late   (run-tdgammon #:late   bnet #:episodes (or episodes 25) #:start-episode 0 #:save #f))
+         (play-bar    (run-tdgammon #:bar    bnet #:episodes (or episodes 25) #:start-episode 0 #:save #f))
+         (play-safe   (run-tdgammon #:safe   bnet #:episodes (or episodes 25) #:start-episode 0 #:save #f))
          (totwwin 0) (totbwin 0))
     ; sum . zip
     (set! totwwin (+ totwwin (car play-random)))

@@ -15,6 +15,7 @@
          (bnet (make-net))
          (measure #f)
          (episodes #f)
+         (start-episode #f)
          (verbose #f)
          ; ---- debug stuff ----
          (threads 1)
@@ -47,6 +48,8 @@
           (set! measure (substring (car args) 10)))
       (if (string-contains (car args) "--episodes=")
           (set! episodes (string->number (substring (car args) 11))))
+      (if (string-contains (car args) "--start-episode=")
+          (set! start-episode (string->number (substring (car args) 16))))
       (if (string-contains (car args) "--verbose")
           (set! *verbose* #t))
       (if (string-contains (car args) "--profiling")
@@ -55,14 +58,14 @@
           (set! threads (string->number (substring (car args) 10)))))
 
     (do ((i 0 (+ i 1)))
-        ((> i threads))
+        ((>= i threads))
       (let ((thunk (lambda ()
                      (format #t "Starting thread ~a/~a~%" i threads)
                      (cond
                       (measure
                        (run-tdgammon-measure measure #:episodes episodes #:thread i))
                       (else
-                       (run-tdgammon wnet bnet #:save #t #:episodes episodes #:verbose verbose #:thread i))))))
+                       (run-tdgammon wnet bnet #:save #t #:episodes episodes #:start-episode start-episode #:verbose verbose #:thread i))))))
         (if (= threads 1)
             ; only do profiling if one threads is used
             (if profiling
