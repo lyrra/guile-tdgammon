@@ -6,6 +6,7 @@
 (load "common-lisp.scm")
 (load "common.scm")
 (load "mat.scm")
+(load "net.scm")
 (load "backgammon.scm")
 (load "td-gammon.scm")
 
