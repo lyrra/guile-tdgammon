@@ -197,6 +197,17 @@
                   (bg-w-bar bg) (bg-b-bar bg)
                   (bg-w-rem bg) (bg-b-rem bg))
           (if *verbose* (bg-print-board bg))
+          ; Set initial Vold
+          (if (and (list? wnet) (= step 0))
+            (let ((vxi (net-vxi wnet))) ; lend networks-input array
+              (set-bg-input bg vxi)
+              (net-run wnet vxi)
+              (rl-init-step rlw wnet)))
+          (if (and (list? bnet) (= step 1))
+            (let ((vxi (net-vxi bnet))) ; lend networks-input array
+              (set-bg-input bg vxi)
+              (net-run bnet vxi)
+              (rl-init-step rlb bnet)))
           ; a <- pi(s)  ; set a to action given by policy for s
           ; Take action a, observe r and next state s'
           ;     new state, s', consists of bg2 and new dice-roll
