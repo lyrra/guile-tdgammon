@@ -11,7 +11,7 @@
         (bout -999)
         (bpath #f)
         (bvxi (make-typed-array 'f32 *unspecified* 198))
-        (vxi (make-typed-array 'f32 *unspecified* 198)))
+        (vxi (net-vxi net))) ; lend networks-input array
     (loop-for path in paths do
       ;(LLL "  path: ~s~%" path)
       (let ((bg path))
@@ -20,16 +20,17 @@
         (let ((out (net-vyo net)))
           ; FIX: should we consider white(idx-0) > black(idx-1) ?
           (if (> (array-ref out 0) bout)
-              (begin
+              (begin ; keep best-scored
                 ;(LLL "  best-net-out: ~s~%" out)
                 (set! bout (array-ref out 0))
                 (set! bpath path)
                 (array-map! bvxi (lambda (x) x) vxi))))))
-    (if bpath ; if not terminate
+    (if bpath ; if path found, ie didn't terminate
         (begin
-          ; restore best-output to network (ie we keep this future)
+          ; restore best-input to network (ie we keep this future)
           (array-map! (net-vxi net) (lambda (x) x) bvxi)
           bpath)
+        ; got terminal-state
         #f)))
 
 (define (human-take-action bg dices)
@@ -127,16 +128,12 @@
        ; sane state
        (if loser
            (assert (state-terminal? bg) "loser in non-terminal"))
-       (match rl
-         ((Vold eligs gam lam)
-          (let ((rewarr (make-typed-array 'f32 0. 2)))
-            (if (> reward 0)
-              (begin
-                (array-set! rewarr (if loser 0. 1.) 0)
-                (array-set! rewarr (if loser 1. 0.) 1)))
-            (run-tderr net Vold rewarr eligs gam lam terminal-state)
-            ; update caches
-            (array-map! Vold (lambda (x) x) Vnew))))))))
+       (let ((rewarr (make-typed-array 'f32 0. 2)))
+         (if (> reward 0)
+             (begin
+               (array-set! rewarr (if loser 0. 1.) 0)
+               (array-set! rewarr (if loser 1. 0.) 1)))
+         (run-tderr net rewarr rl terminal-state))))))
 
 (define (run-turn-ml bg net dices)
   (policy-take-action bg net dices))
