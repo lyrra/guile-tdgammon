@@ -171,7 +171,9 @@
         (rlw (make-rl gam lam))
         (rlb (make-rl gam lam))
         (wwin 0) (bwin 0)
-        (terminal-state #f))
+        (terminal-state #f)
+        (start-time (current-time))
+        (totsteps 0))
     ; loop for each episode
     (do ((episode 0 (1+ episode)))
         ((and episodes (>= episode episodes)))
@@ -236,13 +238,19 @@
              ; evolve state
              ; s <- s'
              (set! bg new-bg)
+             (set! totsteps (+ totsteps step))
              (cond
               ((= (bg-w-rem bg) 15)
-               (set! wwin (+ wwin 1))
-               (format #t "~a.~a.~a winner:WHITE [~a,~a]~%" thread episode step wwin bwin))
+               (assert terminal-state)
+               (set! wwin (+ wwin 1)))
               ((= (bg-b-rem bg) 15)
-               (set! bwin (+ bwin 1))
-               (format #t "~a.~a.~a winner:BLACK [~a,~a]~%" thread episode step wwin bwin)))))
+               (assert terminal-state)
+               (set! bwin (+ bwin 1))))
+             (if terminal-state
+               (format #t "~a.~a.~a s/t:~a winner:~a [~a,~a]~%" thread episode step
+                       (inexact->exact (truncate (/ totsteps (- (current-time) start-time -1))))
+                       (if (= (bg-w-rem bg) 15) "WHITE" "BLACK")
+                       wwin bwin))))
           ; s <- s'
           (set! dices (roll-dices))
           (set-bg-ply! bg (not ply))
