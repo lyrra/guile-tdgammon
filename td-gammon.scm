@@ -24,11 +24,11 @@
                 ;(LLL "  best-net-out: ~s~%" out)
                 (set! bout (array-ref out 0))
                 (set! bpath path)
-                (array-map! bvxi (lambda (x) x) vxi))))))
+                (scopy! vxi bvxi))))))
     (if bpath ; if path found, ie didn't terminate
         (begin
           ; restore best-input to network (ie we keep this future)
-          (array-map! (net-vxi net) (lambda (x) x) bvxi)
+          (scopy! bvxi (net-vxi net))
           bpath)
         ; got terminal-state
         #f)))
