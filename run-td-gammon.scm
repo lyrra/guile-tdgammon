@@ -11,6 +11,9 @@
 (load "backgammon.scm")
 (load "td-gammon.scm")
 
+(load "sigmoid.scm")
+(sigmoid-init)
+
 (define (main)
   (init-rand)
   (let* ((wnet (make-net))
