@@ -170,15 +170,16 @@
       (list bg)) ; we return a list of paths
      ; ply has pieces on bar, must move them first
      ((> (if ply (bg-w-bar bg) (bg-b-bar bg)) 0)
-      (let ((d (car dices)))
+      (let* ((d (car dices))
+             ; white/black start of opposite side
+             (newpos (if ply (- 24 d) (- d 1))))
         (cond
          ; position is possible to move in to
-         ((< (array-ref brr (if ply (- 24 d) (- d 1))) 2)
+         ((< (array-ref brr newpos) 2)
           (let ((nbg (copy-bg bg)))
             ; put piece on the board
             (array-inc! (if ply (bg-w-pts nbg) (bg-b-pts nbg))
-                        (if ply 23 0) ; white/black start of opposite side
-                        1)
+                        newpos 1)
             (cond ; remove piece from bar
              (ply
               (set-bg-w-bar! nbg (1- (bg-w-bar nbg))))
