@@ -4,6 +4,9 @@
   | edit my-env.sh # point out your blas-library
   | ENVFILE=./my-env.sh ./run.sh
 
+** todo
+*** 20200410 LLL/verbose isn't implemented in run-tests
+
 ** links
    THE book on RL
    - http://incompleteideas.net/book/first/ebook/node108.html
