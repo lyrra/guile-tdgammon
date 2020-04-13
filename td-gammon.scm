@@ -1,4 +1,35 @@
 
+(define (file-load-net file which)
+  (let ((net #f))
+    (call-with-input-file file
+      (lambda (p)
+        (let ((x (read p)))
+          (match (car x)
+            (#:episode ;old network type
+             (set! net
+                   (car (cdr (if which (caddr x) (cadddr x)))))
+             ; if net is saved as a list, convert to vector
+             (if (list? net)
+                 (list->array 1 net)
+                 net))
+            ; new network (an alist)
+            (pair
+             (if which
+                 (cdr (assq #:wnet x))
+                 (cdr (assq #:bnet x))))))))))
+
+(define (file-write-net file episode wnet bnet)
+  (call-with-output-file file
+    (lambda (p)
+      (format p "((#:episode . ~a)~%" episode)
+      (format p "(#:wnet .~%")
+      (write wnet p)
+      (format p "~%)~%(#:bnet .~%")
+      (write bnet p)
+      (format p "))~%"))))
+
+;----
+
 (define (roll-dices)
   (let ((d1 (1+ (truncate (random 6 *rands*))))
         (d2 (1+ (truncate (random 6 *rands*)))))
