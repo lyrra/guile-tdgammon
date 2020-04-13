@@ -222,13 +222,13 @@
              'ok)
             (new-bg
              (set! terminal-state (state-terminal? new-bg))
-             (if (list? (if ply wnet bnet)) ; ML-player
+             (if (array? (if ply wnet bnet)) ; ML-player
                  ; learn winner network
                  (run-ml-learn new-bg
                                (if ply rlw rlb)
                                (if ply wnet bnet)
                                terminal-state #f))
-             (if (list? (if ply bnet wnet)) ; ML-player
+             (if (array? (if ply bnet wnet)) ; ML-player
                  ; if in terminal-state, also let loser learn 
                  (if terminal-state
                    (run-ml-learn new-bg
