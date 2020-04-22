@@ -28,6 +28,26 @@
       (write bnet p)
       (format p "))~%"))))
 
+(define (net-input-output threadio src-wnet src-bnet wwin bwin episodes totsteps start-time)
+  ; send current network to master
+  (let ((wnet (net-copy src-wnet))
+        (bnet (net-copy src-bnet)))
+    (array-set! threadio
+                (list (net-copy src-wnet)
+                      (net-copy src-bnet)
+                      wwin bwin
+                      episodes
+                      totsteps
+                      start-time)
+                1)
+    ; get latest network from master
+    (let ((msg (array-ref threadio 0)))
+      (if (list? msg)
+          (match msg
+            ((new-wnet new-bnet)
+             (list new-wnet new-bnet)))
+          #f))))
+
 ;----
 
 (define (roll-dices)
@@ -192,7 +212,7 @@
    (else ; player is controlled by artificial type of neural-network
      (run-turn-ml bg net dices))))
 
-(define* (run-tdgammon wnet bnet #:key episodes start-episode save verbose thread)
+(define* (run-tdgammon wnet bnet #:key episodes start-episode save verbose thread threadio)
   ; initialize theta, given by parameters wnet and bnet
   (let* ((gam 0.9) ; td-gamma
         (lam 0.9) ; eligibility-trace decay
@@ -209,7 +229,7 @@
     (do ((episode 0 (1+ episode)))
         ((and episodes (>= episode episodes)))
       ; save the network now and then
-      (if (and save wnet (= (modulo episode 100) 0))
+      (if (and (not threadio) save wnet (= (modulo episode 100) 0))
           (file-write-net (format #f "~a-net-~a.txt" thread
                                   (+ (or start-episode 0) episode))
                           (+ (or start-episode 0) episode) wnet bnet))
@@ -268,21 +288,26 @@
                                  terminal-state #t)))
              ; evolve state
              ; s <- s'
-             (set! bg new-bg)
-             (set! totsteps (+ totsteps step))
-             (cond
-              ((= (bg-w-rem bg) 15)
-               (assert terminal-state)
-               (set! wwin (+ wwin 1)))
-              ((= (bg-b-rem bg) 15)
-               (assert terminal-state)
-               (set! bwin (+ bwin 1))))
-             (if terminal-state
-               (format #t "~a.~a.~a s/t:~a winner:~a [~a,~a]~%" thread episode step
-                       (inexact->exact (truncate (/ totsteps (- (current-time) start-time -1))))
-                       (if (= (bg-w-rem bg) 15) "WHITE" "BLACK")
-                       wwin bwin))))
-          ; s <- s'
+             (set! bg new-bg)))
+          ; check if terminal-state
+          (cond
+           ((= (bg-w-rem bg) 15)
+            (assert terminal-state)
+            (set! wwin (+ wwin 1)))
+           ((= (bg-b-rem bg) 15)
+            (assert terminal-state)
+            (set! bwin (+ bwin 1))))
+          (if terminal-state
+            (begin
+              (set! totsteps (+ totsteps step))
+            (if (not threadio)
+              (format #t "~a.~a.~a s/t:~a winner:~a [~a,~a]~%" thread episode step
+                      ;(inexact->exact (truncate (/ totsteps (- (current-time) start-time -1))))
+                      (truncate (/ totsteps (- (current-time) start-time -1)))
+                      (if (= (bg-w-rem bg) 15) "WHITE" "BLACK")
+                      wwin bwin))))
+          ;--------------------------------------
+          ; s <- s' , dices are part of state/env
           (set! dices (roll-dices))
           (set-bg-ply! bg (not ply))
           ; bookkeeping
@@ -297,10 +322,21 @@
             (set! btot (+ btot (bg-b-bar bg)))
             (assert (= wtot 15) (format #f "w-pcs/=15:~a" wtot))
             (assert (= btot 15) (format #f "b-pcs/=15:~a" btot))
-            ))))
+            )))
+      ; end of episode
+      ; if we are multithreading, report current net/stat
+      (if threadio
+          (match
+           (net-input-output threadio wnet bnet wwin bwin episode totsteps start-time)
+            (#f #f) ; no network updates from master
+            ((wnet2 bnet2) ; switch to updated networks
+             (set! wnet wnet2)
+             (set! bnet bnet2)))))
+    (if threadio ; signal thread done
+        (array-set! threadio #:done 1))
     (list wwin bwin)))
 
-(define* (run-tdgammon-measure file #:key episodes thread)
+(define* (run-tdgammon-measure file #:key episodes thread threadio)
   (let* ((bnet (file-load-net file #f))
          (play-random (run-tdgammon #:random bnet #:episodes (or episodes 25) #:start-episode 0 #:save #f #:thread thread))
          (play-early  (run-tdgammon #:early  bnet #:episodes (or episodes 25) #:start-episode 0 #:save #f #:thread thread))
