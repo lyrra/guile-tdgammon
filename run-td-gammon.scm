@@ -6,13 +6,25 @@
 (load "common-lisp.scm")
 (load "common.scm")
 (load "mat.scm")
+(load "gpu.scm")
+
+;;; check if gpu is used
+
+(let ((gpu #f))
+  (do ((args (command-line) (cdr args)))
+      ((eq? args '()))
+    (if (string=? (car args) "--gpu")
+        (set! gpu #t)))
+  (if gpu (load "rocm-blas.scm")))
+
+;;; Load ML/RL
+
 (load "net.scm")
 (load "rl.scm")
 (load "backgammon.scm")
 (load "td-gammon.scm")
 
 (load "sigmoid.scm")
-(sigmoid-init)
 
 (define (handle-threads fileprefix threadio start-episode file-save-interval)
   (format #t "Waiting for threads to finish~%")
@@ -95,6 +107,8 @@
 
 (define (main)
   (init-rand)
+  (sigmoid-init)
+  (gpu-init)
   (let* ((wnet (make-net))
          (bnet (make-net))
          (measure #f)
@@ -152,6 +166,7 @@
         ((>= i threads))
       (let ((thunk (lambda ()
                      (format #t "Starting thread ~a/~a~%" i threads)
+                     (gpu-init-thread i)
                      (cond
                       (measure
                        (run-tdgammon-measure measure #:episodes episodes

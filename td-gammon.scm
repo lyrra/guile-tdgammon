@@ -9,23 +9,25 @@
              (set! net
                    (car (cdr (if which (caddr x) (cadddr x)))))
              ; if net is saved as a list, convert to vector
-             (if (list? net)
-                 (list->array 1 net)
-                 net))
+             (net-make-from
+              (if (list? net)
+                  (list->array 1 net)
+                  net)))
             ; new network (an alist)
             (pair
-             (if which
-                 (cdr (assq #:wnet x))
-                 (cdr (assq #:bnet x))))))))))
+             (net-make-from
+              (if which
+                  (cdr (assq #:wnet x))
+                  (cdr (assq #:bnet x)))))))))))
 
 (define (file-write-net file episode wnet bnet)
   (call-with-output-file file
     (lambda (p)
       (format p "((#:episode . ~a)~%" episode)
       (format p "(#:wnet .~%")
-      (write wnet p)
+      (write (net-serialize wnet) p)
       (format p "~%)~%(#:bnet .~%")
-      (write bnet p)
+      (write (net-serialize bnet) p)
       (format p "))~%"))))
 
 (define (net-input-output threadio src-wnet src-bnet wwin bwin episodes totsteps start-time)
@@ -75,11 +77,11 @@
                 ;(LLL "  best-net-out: ~s~%" out)
                 (set! bout (array-ref out 0))
                 (set! bpath path)
-                (scopy! vxi bvxi))))))
+                (array-scopy! vxi bvxi))))))
     (if bpath ; if path found, ie didn't terminate
         (begin
           ; restore best-input to network (ie we keep this future)
-          (scopy! bvxi (net-vxi net))
+          (net-set-input net bvxi)
           bpath)
         ; got terminal-state
         #f)))
@@ -330,8 +332,8 @@
            (net-input-output threadio wnet bnet wwin bwin episode totsteps start-time)
             (#f #f) ; no network updates from master
             ((wnet2 bnet2) ; switch to updated networks
-             (set! wnet wnet2)
-             (set! bnet bnet2)))))
+             (net-transfer wnet wnet2)
+             (net-transfer bnet bnet2)))))
     (if threadio ; signal thread done
         (array-set! threadio #:done 1))
     (list wwin bwin)))
