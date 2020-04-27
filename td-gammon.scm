@@ -175,18 +175,17 @@
   ; need to rerun network to get fresh output at each layer
   ; needed by backprop
   (net-run net (net-vxi net)) ; uses the best-path as input
-  (let ((Vnew (net-vyo net)))
-    (match (get-reward bg)
-      ((reward terminal-state)
-       ; sane state
-       (if loser
-           (assert (state-terminal? bg) "loser in non-terminal"))
-       (let ((rewarr (make-typed-array 'f32 0. 2)))
-         (if (> reward 0)
-             (begin
-               (array-set! rewarr (if loser 0. 1.) 0)
-               (array-set! rewarr (if loser 1. 0.) 1)))
-         (run-tderr net rewarr rl terminal-state))))))
+  (match (get-reward bg)
+    ((reward terminal-state)
+     ; sane state
+     (if loser
+         (assert (state-terminal? bg) "loser in non-terminal"))
+     (let ((rewarr (make-typed-array 'f32 0. 2)))
+       (if (> reward 0)
+           (begin
+             (array-set! rewarr (if loser 0. 1.) 0)
+             (array-set! rewarr (if loser 1. 0.) 1)))
+       (run-tderr net rewarr rl terminal-state)))))
 
 (define (run-turn-ml bg net dices)
   (policy-take-action bg net dices))
