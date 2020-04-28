@@ -72,10 +72,10 @@
         (net-run net vxi)
         (let ((out (net-vyo net)))
           ; FIX: should we consider white(idx-0) > black(idx-1) ?
-          (if (> (array-ref out 0) bout)
+          (if (> (- (array-ref out 0) (array-ref out 1)) bout)
               (begin ; keep best-scored
                 ;(LLL "  best-net-out: ~s~%" out)
-                (set! bout (array-ref out 0))
+                (set! bout (- (array-ref out 0) (array-ref out 1)))
                 (set! bpath path)
                 (array-scopy! vxi bvxi))))))
     (if bpath ; if path found, ie didn't terminate
@@ -216,7 +216,7 @@
 (define* (run-tdgammon wnet bnet #:key episodes start-episode save verbose thread threadio)
   ; initialize theta, given by parameters wnet and bnet
   (let* ((gam 0.9) ; td-gamma
-        (lam 0.9) ; eligibility-trace decay
+        (lam 0.7) ; eligibility-trace decay
         (bg (setup-bg))
         (dices (roll-dices))
         ; eligibility-traces
