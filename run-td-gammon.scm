@@ -113,7 +113,7 @@
          (bnet (make-net))
          (measure #f)
          (episodes #f)
-         (start-episode #f)
+         (start-episode 0)
          (verbose #f)
          ; ---- debug stuff ----
          (threads 1)

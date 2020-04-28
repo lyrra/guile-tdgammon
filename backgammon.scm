@@ -61,11 +61,10 @@
       (array-set! vxi 0. (+ 1 (* p 4) off))
       (array-set! vxi 0. (+ 2 (* p 4) off))
       (array-set! vxi 0. (+ 3 (* p 4) off))
-      (cond
-       ((> pcs 3) (array-set! vxi (/ (- pcs 3) 2) (+ 3 (* p 4) off)))
-       ((= pcs 3) (array-set! vxi 1. (+ 2 (* p 4) off)))
-       ((= pcs 2) (array-set! vxi 1. (+ 1 (* p 4) off)))
-       ((= pcs 1) (array-set! vxi 1. (+ 0 (* p 4) off)))))))
+      (if (> pcs 3) (array-set! vxi (/ (- pcs 3) 2) (+ 3 (* p 4) off)))
+      (if (> pcs 2) (array-set! vxi 1. (+ 2 (* p 4) off)))
+      (if (> pcs 1) (array-set! vxi 1. (+ 1 (* p 4) off)))
+      (if (> pcs 0) (array-set! vxi 1. (+ 0 (* p 4) off))))))
 
 (define (pts-ply bg)
   (let  ((arr (bg-w-pts bg))
@@ -116,14 +115,14 @@
          (array-set! vxi (/ (bg-b-bar bg)  2) (+ 1 n))
          (array-set! vxi (/ (bg-w-rem bg) 15) (+ 2 n))
          (array-set! vxi (/ (bg-b-rem bg) 15) (+ 3 n))
-         (array-set! vxi 1. (+ 4 n))
+         (array-set! vxi 1. (+ 4 n)) ; not used, but serves as a bias-neuron
          (array-set! vxi 0. (+ 5 n)))
         (else
          (array-set! vxi (/ (bg-b-bar bg)  2) n)
          (array-set! vxi (/ (bg-w-bar bg)  2) (+ 1 n))
          (array-set! vxi (/ (bg-b-rem bg) 15) (+ 2 n))
          (array-set! vxi (/ (bg-w-rem bg) 15) (+ 3 n))
-         (array-set! vxi 1. (+ 4 n))
+         (array-set! vxi 1. (+ 4 n)) ; not used, but serves as a bias-neuron
          (array-set! vxi 0. (+ 5 n))))
        (set! n (+ n 6))
        n))))
