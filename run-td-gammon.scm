@@ -57,10 +57,10 @@
                      (array-set! wwins wwin i)
                      (array-set! bwins bwin i)
                      (if wnet
-                         (net-merge! wnet wnet ct-wnet)
+                         (net-merge! wnet wnet ct-wnet 1/6)
                          (set! wnet ct-wnet))
                      (if bnet
-                         (net-merge! bnet bnet ct-bnet)
+                         (net-merge! bnet bnet ct-bnet 1/6)
                          (set! bnet ct-bnet))))))))
         ; publish merged network
         (do ((i 0 (+ i 1)))
