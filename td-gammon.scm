@@ -230,7 +230,7 @@
     (do ((episode 0 (1+ episode)))
         ((and episodes (>= episode episodes)))
       ; save the network now and then
-      (if (and (not threadio) save wnet (= (modulo episode 100) 0))
+      (if (and (not threadio) save wnet (> episode 0) (= (modulo episode 100) 0))
           (file-write-net (format #f "~a-net-~a.txt" thread
                                   (+ (or start-episode 0) episode))
                           (+ (or start-episode 0) episode) wnet bnet))
