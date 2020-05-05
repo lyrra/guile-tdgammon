@@ -6,6 +6,7 @@
 (load "common-lisp.scm")
 (load "common.scm")
 (load "mat.scm")
+(load "sigmoid.scm")
 (load "gpu.scm")
 
 ;;; check if gpu is used
@@ -24,7 +25,6 @@
 (load "backgammon.scm")
 (load "td-gammon.scm")
 
-(load "sigmoid.scm")
 
 (define (handle-threads fileprefix threadio start-episode file-save-interval)
   (format #t "Waiting for threads to finish~%")
