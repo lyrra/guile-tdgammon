@@ -187,31 +187,14 @@
              (array-set! rewarr (if loser 1. 0.) 1)))
        (run-tderr net rewarr rl terminal-state)))))
 
-(define (run-turn-ml bg net dices)
-  (policy-take-action bg net dices))
-
-(define (run-turn-human bg dices)
-  (human-take-action bg dices))
-
-(define (run-turn-style bg dices style)
-  (style-take-action bg dices style))
-
 (define (run-turn bg net dices)
   (cond
+   ((array? net) ; player is controlled by artificial type of neural-network
+     (policy-take-action bg net dices))
    ((eq? net #:human) ; human type of neural-network controls player
-     (run-turn-human bg dices))
-   ((eq? net #:late) ; remove pieces as late as possible
-     (run-turn-style bg dices #:late))
-   ((eq? net #:early) ; remove pieces as soon as possible
-     (run-turn-style bg dices #:early))
-   ((eq? net #:random) ; make random moves
-     (run-turn-style bg dices #:random))
-   ((eq? net #:bar) ; try to bar opponents pieces
-     (run-turn-style bg dices #:bar))
-   ((eq? net #:safe) ; avoid exposed positions
-     (run-turn-style bg dices #:safe))
-   (else ; player is controlled by artificial type of neural-network
-     (run-turn-ml bg net dices))))
+     (human-take-action bg dices))
+   (else
+     (style-take-action bg dices net))))
 
 (define* (run-tdgammon wnet bnet opts #:key episodes start-episode save verbose thread threadio)
   ; initialize theta, given by parameters wnet and bnet
