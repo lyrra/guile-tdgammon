@@ -127,6 +127,23 @@
        (set! n (+ n 6))
        n))))
 
+(define (bg-race? bg)
+  (and (= (bg-w-bar bg) 0)
+       (= (bg-b-bar bg) 0)
+       (let ((w 23) (b 0)
+             (wrr (bg-w-pts bg))
+             (brr (bg-b-pts bg)))
+         (do ((p 0 (1+ p)))
+             ((>= p 24))
+           (if (> (array-ref brr p) 0) (set! b p)))
+         (do ((p 23 (1- p)))
+             ((>= 0 p))
+           (if (> (array-ref wrr p) 0) (set! w p)))
+         ; if black and white has passed each other, it is a race!
+         ; else they are still in contact
+         (> b w))))
+
+
 (define (bg-apply-move bg oldpos newpos newpcs ply)
   (match (pts-ply bg)
     ((arr brr)
