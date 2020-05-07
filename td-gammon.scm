@@ -213,10 +213,10 @@
    (else ; player is controlled by artificial type of neural-network
      (run-turn-ml bg net dices))))
 
-(define* (run-tdgammon wnet bnet #:key episodes start-episode save verbose thread threadio)
+(define* (run-tdgammon wnet bnet opts #:key episodes start-episode save verbose thread threadio)
   ; initialize theta, given by parameters wnet and bnet
-  (let* ((gam 0.9) ; td-gamma
-        (lam 0.7) ; eligibility-trace decay
+  (let* ((gam (get-opt opts 'rl-gam)) ; td-gamma
+         (lam (get-opt opts 'rl-lam)) ; eligibility-trace decay
         (bg (setup-bg))
         (dices (roll-dices))
         ; eligibility-traces
@@ -337,13 +337,15 @@
         (array-set! threadio #:done 1))
     (list wwin bwin)))
 
-(define* (run-tdgammon-measure file #:key episodes thread threadio)
+(define* (run-tdgammon-measure file opts #:key episodes thread threadio)
   (let* ((bnet (file-load-net file #f))
-         (play-random (run-tdgammon #:random bnet #:episodes (or episodes 25) #:start-episode 0 #:save #f #:thread thread))
-         (play-early  (run-tdgammon #:early  bnet #:episodes (or episodes 25) #:start-episode 0 #:save #f #:thread thread))
-         (play-late   (run-tdgammon #:late   bnet #:episodes (or episodes 25) #:start-episode 0 #:save #f #:thread thread))
-         (play-bar    (run-tdgammon #:bar    bnet #:episodes (or episodes 25) #:start-episode 0 #:save #f #:thread thread))
-         (play-safe   (run-tdgammon #:safe   bnet #:episodes (or episodes 25) #:start-episode 0 #:save #f #:thread thread))
+         (play-fun (lambda (play-type)
+                     (run-tdgammon play-type bnet opts #:episodes (or episodes 25) #:start-episode 0 #:save #f #:thread thread)))
+         (play-random (play-fun #:random))
+         (play-early  (play-fun #:early))
+         (play-late   (play-fun #:late))
+         (play-bar    (play-fun #:bar))
+         (play-safe   (play-fun #:safe))
          (totwwin 0) (totbwin 0))
     ; sum . zip
     (set! totwwin (+ totwwin (car play-random)))

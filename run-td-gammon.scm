@@ -118,10 +118,15 @@
          ; ---- debug stuff ----
          (threads 1)
          (threadio #f)
-         (profiling #f))
+         (profiling #f)
+         (rl-gam 0.9) ; td-gamma
+         (rl-lam 0.7) ; eligibility-trace decay
+         (file-prefix "v0"))
     (do ((args (command-line) (cdr args)))
         ((eq? args '()))
       (format #t "  arg: ~s~%" (car args))
+      (if (string-contains (car args) "--prefix=")
+          (set! file-prefix (substring (car args) 9)))
       (if (string=? (car args) "--human")
           (set! wnet #:human))
       (if (string-contains (car args) "--random")
@@ -153,7 +158,12 @@
       (if (string-contains (car args) "--profiling")
           (set! profiling #t))
       (if (string-contains (car args) "--threads=")
-          (set! threads (string->number (substring (car args) 10)))))
+          (set! threads (string->number (substring (car args) 10))))
+      ; RL parameters
+      (if (string-contains (car args) "--rl-lam=") ; td-gamma
+          (set! rl-lam (string->number (substring (car args) 9))))
+      (if (string-contains (car args) "--rl-gam=") ; eligibility-trace
+          (set! rl-gam (string->number (substring (car args) 9)))))
     (if (> threads 1)
         (begin
           (set! threadio (make-array #f threads))
@@ -169,13 +179,18 @@
                      (gpu-init-thread i)
                      (cond
                       (measure
-                       (run-tdgammon-measure measure #:episodes episodes
+                       (run-tdgammon-measure measure
+                                             (list (cons 'rl-gam rl-gam)
+                                                   (cons 'rl-lam rl-lam))
+                                             #:episodes episodes
                                              #:thread i
                                              #:threadio (if threadio
                                                             (array-ref threadio i)
                                                             #f)))
                       (else
                        (run-tdgammon wnet bnet
+                                     (list (cons 'rl-gam rl-gam)
+                                           (cons 'rl-lam rl-lam))
                                      #:save #t #:episodes episodes
                                      #:start-episode start-episode
                                      #:verbose verbose #:thread i
@@ -191,6 +206,6 @@
     (if (> threads 1)
         (begin
           (sleep 1)
-          (handle-threads "1" threadio start-episode 100)))))
+          (handle-threads file-prefix threadio start-episode 100)))))
 
 (main)
