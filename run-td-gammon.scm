@@ -139,6 +139,10 @@
           (set! wnet #:bar))
       (if (string-contains (car args) "--safe")
           (set! wnet #:safe))
+      (if (string-contains (car args) "--pubeval")
+          (begin
+            (load "lib/pubeval/pubeval.scm")
+            (pubeval-rdwts)))
       (if (string-contains (car args) "--swap")
           (let ((tmp wnet))
             (set! wnet bnet)

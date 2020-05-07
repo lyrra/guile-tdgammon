@@ -153,7 +153,8 @@
                            paths)))
          (if (eq? sels '())
            (car (last-pair paths))
-           (car (last-pair sels)))))))))
+           (car (last-pair sels)))))
+      ((procedure? style) (style bg paths))))))
 
 (define (state-terminal? bg)
   (or (= (bg-w-rem bg) 15) ; white has won
@@ -324,6 +325,7 @@
   (let* ((bnet (file-load-net file #f))
          (play-fun (lambda (play-type)
                      (run-tdgammon play-type bnet opts #:episodes (or episodes 25) #:start-episode 0 #:save #f #:thread thread)))
+         (play-pubeval (play-fun pubeval-best-path))
          (play-random (play-fun #:random))
          (play-early  (play-fun #:early))
          (play-late   (play-fun #:late))
@@ -331,6 +333,8 @@
          (play-safe   (play-fun #:safe))
          (totwwin 0) (totbwin 0))
     ; sum . zip
+    (set! totwwin (+ totwwin (car play-pubeval)))
+    (set! totbwin (+ totbwin (cadr play-pubeval)))
     (set! totwwin (+ totwwin (car play-random)))
     (set! totbwin (+ totbwin (cadr play-random)))
     (set! totwwin (+ totwwin (car play-early)))
@@ -342,8 +346,9 @@
     (set! totwwin (+ totwwin (car play-safe)))
     (set! totbwin (+ totbwin (cadr play-safe)))
 
-    (format #t "RESULT: ~a,~a,~a,~a,~a,~a,~a,~a,~a,~a,~a,~a~%"
+    (format #t "RESULT: ~a,~a,~a,~a,~a,~a,~a,~a,~a,~a,~a,~a,~a,~a~%"
             totwwin totbwin
+            (car play-pubeval) (cadr play-pubeval)
             (car play-random) (cadr play-random)
             (car play-early)  (cadr play-early)
             (car play-late)   (cadr play-late)
