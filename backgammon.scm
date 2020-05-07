@@ -201,6 +201,15 @@
               (set-bg-w-bar! nbg (1- (bg-w-bar nbg))))
              (else
               (set-bg-b-bar! nbg (1- (bg-b-bar nbg)))))
+            ; if opponent is hit, move to bar
+            (if (= (array-ref brr newpos) 1)
+                (begin
+                (array-set! (if ply (bg-b-pts nbg) (bg-w-pts nbg))
+                            0
+                            newpos)
+                (if ply
+                    (set-bg-b-bar! nbg (1+ (bg-b-bar nbg)))
+                    (set-bg-w-bar! nbg (1+ (bg-w-bar nbg))))))
             (bg-fold-states nbg (cdr dices))))
          (else ; position is occupied
           (if (eq? '() (cdr dices))
