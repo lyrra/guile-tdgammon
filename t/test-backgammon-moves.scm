@@ -96,3 +96,42 @@
         ((> i test-depth))
       (_test-backgammon-bar-pos_ #t)
       (_test-backgammon-bar-pos_ #f))))
+
+(define (_test-backgammon-state-valid bg)
+  (match (pts-ply bg)
+    ((arr brr)
+     (do ((p 0 (1+ p)))
+         ((>= p 24))
+       ; same point musn't be occupied by both players
+       (assert (not (and (> (array-ref arr p) 0)
+                         (> (array-ref brr p) 0))))))))
+
+(define (_test-backgammon-run-game pre-step-fun move-fun)
+  (let* ((bg (setup-bg))
+         (dices (odd-dices))
+         (pos (dices->pos dices))
+         (terminal-state #f)
+         (ply #t)) ; white begin
+      (do ((step 0 (1+ step)))
+          (terminal-state)
+        (pre-step-fun bg step)
+        (match (move-fun bg (roll-dices))
+          (#f ; player cant move
+           (test-assert (not (state-terminal? bg))))
+          (new-bg
+           (set! terminal-state (state-terminal? new-bg))
+           (set! bg new-bg)
+           (set-bg-ply! bg ply))))))
+
+(define (test-backgammon-valid-pos)
+  (let ((test-depth 25)
+        (pre-step-fun (lambda (bg step)
+                        (_test-backgammon-state-valid bg)))
+        (move-fun (lambda (bg dices)
+                    (let ((paths (bg-find-all-states bg dices)))
+                      (loop-for bg in paths do
+                        (_test-backgammon-state-valid bg))
+                      (list-ref paths (random (length paths)))))))
+    (do ((i 0 (1+ i)))
+        ((> i test-depth))
+      (_test-backgammon-run-game pre-step-fun move-fun))))
