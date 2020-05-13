@@ -213,6 +213,9 @@
     ; loop for each episode
     (do ((episode 0 (1+ episode)))
         ((and episodes (>= episode episodes)))
+      ; merge white and black networks
+      (if (and (array? wnet) (array? bnet))
+          (net-merge! bnet bnet wnet 0.5))
       ; save the network now and then
       (if (and (not threadio) save wnet (> episode 0) (= (modulo episode 100) 0))
           (file-write-net (format #f "~a-net-~a.txt" thread
