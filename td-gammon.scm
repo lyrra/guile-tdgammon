@@ -323,37 +323,3 @@
     (if threadio ; signal thread done
         (array-set! threadio #:done 1))
     (list wwin bwin)))
-
-(define* (run-tdgammon-measure file opts #:key episodes thread threadio)
-  (let* ((bnet (file-load-net file #f))
-         (play-fun (lambda (play-type)
-                     (run-tdgammon play-type bnet opts #:episodes (or episodes 25) #:start-episode 0 #:save #f #:thread thread)))
-         (play-pubeval (play-fun pubeval-best-path))
-         (play-random (play-fun #:random))
-         (play-early  (play-fun #:early))
-         (play-late   (play-fun #:late))
-         (play-bar    (play-fun #:bar))
-         (play-safe   (play-fun #:safe))
-         (totwwin 0) (totbwin 0))
-    ; sum . zip
-    (set! totwwin (+ totwwin (car play-pubeval)))
-    (set! totbwin (+ totbwin (cadr play-pubeval)))
-    (set! totwwin (+ totwwin (car play-random)))
-    (set! totbwin (+ totbwin (cadr play-random)))
-    (set! totwwin (+ totwwin (car play-early)))
-    (set! totbwin (+ totbwin (cadr play-early)))
-    (set! totwwin (+ totwwin (car play-late)))
-    (set! totbwin (+ totbwin (cadr play-late)))
-    (set! totwwin (+ totwwin (car play-bar)))
-    (set! totbwin (+ totbwin (cadr play-bar)))
-    (set! totwwin (+ totwwin (car play-safe)))
-    (set! totbwin (+ totbwin (cadr play-safe)))
-
-    (format #t "RESULT: ~a,~a,~a,~a,~a,~a,~a,~a,~a,~a,~a,~a,~a,~a~%"
-            totwwin totbwin
-            (car play-pubeval) (cadr play-pubeval)
-            (car play-random) (cadr play-random)
-            (car play-early)  (cadr play-early)
-            (car play-late)   (cadr play-late)
-            (car play-bar)   (cadr play-bar)
-            (car play-safe)   (cadr play-safe))))

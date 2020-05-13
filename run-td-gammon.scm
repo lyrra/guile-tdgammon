@@ -24,6 +24,7 @@
 (load "rl.scm")
 (load "backgammon.scm")
 (load "td-gammon.scm")
+(load "measure.scm")
 
 
 (define (handle-threads fileprefix threadio start-episode file-save-interval)
