@@ -236,12 +236,12 @@
                   (bg-w-rem bg) (bg-b-rem bg))
           (if *verbose* (bg-print-board bg))
           ; Set initial Vold
-          (if (and (list? wnet) (= step 0))
+          (if (and (array? wnet) (= step 0))
             (let ((vxi (net-vxi wnet))) ; lend networks-input array
               (set-bg-input bg vxi)
               (net-run wnet vxi)
               (rl-init-step rlw wnet)))
-          (if (and (list? bnet) (= step 1))
+          (if (and (array? bnet) (= step 1))
             (let ((vxi (net-vxi bnet))) ; lend networks-input array
               (set-bg-input bg vxi)
               (net-run bnet vxi)
