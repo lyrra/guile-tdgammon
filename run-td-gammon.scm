@@ -109,8 +109,8 @@
   (init-rand)
   (sigmoid-init)
   (gpu-init)
-  (let* ((wnet (make-net))
-         (bnet (make-net))
+  (let* ((wnet #f)
+         (bnet #f)
          (measure #f)
          (episodes #f)
          (start-episode 0)
@@ -119,6 +119,8 @@
          (threads 1)
          (threadio #f)
          (profiling #f)
+         ; ML stuff
+         (numhid 40)  ; number of hidden neurons
          (rl-gam 0.9) ; td-gamma
          (rl-lam 0.7) ; eligibility-trace decay
          (file-prefix "v0"))
@@ -167,7 +169,12 @@
       (if (string-contains (car args) "--rl-lam=") ; td-gamma
           (set! rl-lam (string->number (substring (car args) 9))))
       (if (string-contains (car args) "--rl-gam=") ; eligibility-trace
-          (set! rl-gam (string->number (substring (car args) 9)))))
+          (set! rl-gam (string->number (substring (car args) 9))))
+      ; ML parameters
+      (if (string-contains (car args) "--numhid=")
+          (set! numhid (string->number (substring (car args) 9)))))
+    (if (not wnet) (set! wnet (make-net numhid)))
+    (if (not bnet) (set! bnet (make-net numhid)))
     (if (> threads 1)
         (begin
           (set! threadio (make-array #f threads))

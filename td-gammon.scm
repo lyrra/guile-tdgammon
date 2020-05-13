@@ -204,8 +204,8 @@
         (bg (setup-bg))
         (dices (roll-dices))
         ; eligibility-traces
-        (rlw (make-rl gam lam))
-        (rlb (make-rl gam lam))
+        (rlw (if (array? wnet) (make-rl gam lam wnet) #f))
+        (rlb (if (array? bnet) (make-rl gam lam bnet) #f))
         (wwin 0) (bwin 0)
         (terminal-state #f)
         (start-time (current-time))
@@ -226,8 +226,8 @@
       (set-bg-ply! bg #t) ; whites turn
       (set! dices (roll-dices))
       (set! terminal-state #f)
-      (rl-episode-clear rlw)
-      (rl-episode-clear rlb)
+      (if rlw (rl-episode-clear rlw))
+      (if rlb (rl-episode-clear rlb))
       ; get initial action here
       ; Repeat for each step in episode:
       (do ((step 0 (1+ step)))
