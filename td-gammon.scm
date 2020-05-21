@@ -197,15 +197,16 @@
    (else
      (style-take-action bg dices net))))
 
-(define* (run-tdgammon wnet bnet opts #:key episodes start-episode save verbose thread threadio)
+(define* (run-tdgammon wnet bnet opts #:key episodes start-episode save verbose thread threadio
+                       measure)
   ; initialize theta, given by parameters wnet and bnet
   (let* ((gam (get-opt opts 'rl-gam)) ; td-gamma
          (lam (get-opt opts 'rl-lam)) ; eligibility-trace decay
         (bg (setup-bg))
         (dices (roll-dices))
         ; eligibility-traces
-        (rlw (if (array? wnet) (make-rl gam lam wnet) #f))
-        (rlb (if (array? bnet) (make-rl gam lam bnet) #f))
+        (rlw (if (and (not measure) (array? wnet)) (make-rl gam lam wnet) #f))
+        (rlb (if (and (not measure) (array? bnet)) (make-rl gam lam bnet) #f))
         (wwin 0) (bwin 0)
         (terminal-state #f)
         (start-time (current-time))
@@ -239,12 +240,12 @@
                   (bg-w-rem bg) (bg-b-rem bg))
           (if *verbose* (bg-print-board bg))
           ; Set initial Vold
-          (if (and (array? wnet) (= step 0))
+          (if (and rlw (= step 0))
             (let ((vxi (net-vxi wnet))) ; lend networks-input array
               (set-bg-input bg vxi)
               (net-run wnet vxi)
               (rl-init-step rlw wnet)))
-          (if (and (array? bnet) (= step 1))
+          (if (and rlb (= step 1))
             (let ((vxi (net-vxi bnet))) ; lend networks-input array
               (set-bg-input bg vxi)
               (net-run bnet vxi)
@@ -261,13 +262,13 @@
              'ok)
             (new-bg
              (set! terminal-state (state-terminal? new-bg))
-             (if (array? (if ply wnet bnet)) ; ML-player
+             (if (if ply rlw rlb) ; ML-player
                  ; learn winner network
                  (run-ml-learn new-bg
                                (if ply rlw rlb)
                                (if ply wnet bnet)
                                terminal-state #f))
-             (if (array? (if ply bnet wnet)) ; ML-player
+             (if (if ply rlb rlw) ; ML-player
                  ; if in terminal-state, also let loser learn 
                  (if terminal-state
                    (run-ml-learn new-bg
