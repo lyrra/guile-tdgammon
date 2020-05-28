@@ -172,6 +172,8 @@
       (if (string-contains (car args) "--rl-gam=") ; eligibility-trace
           (set! rl-gam (string->number (substring (car args) 9))))
       ; ML parameters
+      (if (string-contains (car args) "--alpha=")
+          (set! %alpha (string->number (substring (car args) 8))))
       (if (string-contains (car args) "--numhid=")
           (set! numhid (string->number (substring (car args) 9)))))
     (if (not wnet) (set! wnet (make-net numhid)))
