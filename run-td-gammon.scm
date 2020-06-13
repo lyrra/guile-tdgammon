@@ -113,6 +113,7 @@
   (let* ((wnet #f)
          (bnet #f)
          (measure #f)
+         (measure-tests "prelbs")
          (episodes #f)
          (start-episode 0)
          (verbose #f)
@@ -156,6 +157,8 @@
           (set! bnet (file-load-net (substring (car args) 7) #f)))
       (if (string-contains (car args) "--measure=")
           (set! measure (substring (car args) 10)))
+      (if (string-contains (car args) "--measure-tests=")
+          (set! measure-tests (substring (car args) 16)))
       (if (string-contains (car args) "--episodes=")
           (set! episodes (string->number (substring (car args) 11))))
       (if (string-contains (car args) "--start-episode=")
@@ -197,6 +200,7 @@
                                              (list (cons 'rl-gam rl-gam)
                                                    (cons 'rl-lam rl-lam))
                                              #:episodes episodes
+                                             #:measure-tests measure-tests
                                              #:thread i
                                              #:threadio (if threadio
                                                             (array-ref threadio i)
