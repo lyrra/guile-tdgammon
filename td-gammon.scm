@@ -242,11 +242,13 @@
           ; Set initial Vold
           (if (and rlw (= step 0))
             (let ((vxi (net-vxi wnet))) ; lend networks-input array
+              (rl-episode-clear rlw)
               (set-bg-input bg vxi)
               (net-run wnet vxi)
               (rl-init-step rlw wnet)))
           (if (and rlb (= step 1))
             (let ((vxi (net-vxi bnet))) ; lend networks-input array
+              (rl-episode-clear rlb)
               (set-bg-input bg vxi)
               (net-run bnet vxi)
               (rl-init-step rlb bnet)))
