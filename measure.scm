@@ -1,9 +1,9 @@
 
 (define* (run-tdgammon-measure file opts #:key episodes thread threadio measure-tests)
   (let* ((has (lambda (x) (string-index measure-tests x)))
-         (bnet (file-load-net file #f))
+         (net (file-load-net file))
          (play-fun (lambda (play-type)
-                     (run-tdgammon play-type bnet opts #:episodes (or episodes 25) #:start-episode 0 #:save #f #:thread thread #:measure #t)))
+                     (run-tdgammon net play-type opts #:episodes (or episodes 25) #:start-episode 0 #:save #f #:thread thread #:measure #t)))
          (play-pubeval (if (has #\p) (play-fun pubeval-best-path)))
          (play-random  (if (has #\r) (play-fun #:random)))
          (play-early   (if (has #\e) (play-fun #:early)))
