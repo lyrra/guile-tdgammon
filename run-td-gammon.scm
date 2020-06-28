@@ -36,7 +36,7 @@
         (starttimes (make-array 0 (array-length threadio)))
         (wwins (make-array 0 (array-length threadio)))
         (bwins (make-array 0 (array-length threadio)))
-        (wnet #f) (bnet #f)
+        (net #f)
         (cur-file-save-episode 0))
     (do ()
         (done)
@@ -49,7 +49,7 @@
               (0 #f) ; no news
               (#:done  ; compute-thread is done
                 (set! count (1+ count)))
-              ((ct-wnet ct-bnet wwin bwin ct-episodes ct-totsteps ct-start-time)
+              ((ct-net wwin bwin ct-episodes ct-totsteps ct-start-time)
                (if (> ct-episodes (array-ref episodes i))
                    (begin
                      (array-set! episodes ct-episodes i)
@@ -57,18 +57,15 @@
                      (array-set! starttimes ct-start-time i)
                      (array-set! wwins wwin i)
                      (array-set! bwins bwin i)
-                     (if wnet
-                         (net-merge! wnet wnet ct-wnet 1/6)
-                         (set! wnet ct-wnet))
-                     (if bnet
-                         (net-merge! bnet bnet ct-bnet 1/6)
-                         (set! bnet ct-bnet))))))))
-        ; publish merged network
+                     (if net
+                         (net-merge! net net ct-net 1/6)
+                         (set! net ct-net))))))))
+        ; publish merged network to slave
         (do ((i 0 (+ i 1)))
             ((>= i (array-length threadio)))
-          (if (and wnet bnet)
+          (if net
               (array-set! (array-ref threadio i)
-                          (list wnet bnet)
+                          (list net)
                           0)))
         ; exit if all compute-threads are done
         (if (= count (array-length threadio))
@@ -96,13 +93,13 @@
                   totsteps
                   episodes)
           ; save latest network
-          (if (and wnet bnet
+          (if (and net
                    (> totepisodes (+ cur-file-save-episode file-save-interval)))
               (begin
                 (set! cur-file-save-episode (+ cur-file-save-episode file-save-interval))
                 (file-write-net (format #f "~a-net-~a.txt" fileprefix
                                         (+ start-episode totepisodes))
-                                (+ start-episode totepisodes) wnet bnet))))
+                                (+ start-episode totepisodes) net))))
         (sleep 4))))
   (format #t "All threads are done~%"))
 
@@ -110,8 +107,8 @@
   (init-rand)
   (sigmoid-init)
   (gpu-init)
-  (let* ((wnet #f)
-         (bnet #f)
+  (let* ((net #f)
+         (opponent #:self) ; default to self-play
          (measure #f)
          (measure-tests "prelbs")
          (episodes #f)
@@ -131,30 +128,11 @@
       (format #t "  arg: ~s~%" (car args))
       (if (string-contains (car args) "--prefix=")
           (set! file-prefix (substring (car args) 9)))
-      (if (string=? (car args) "--human")
-          (set! wnet #:human))
-      (if (string-contains (car args) "--random")
-          (set! wnet #:random))
-      (if (string-contains (car args) "--late")
-          (set! wnet #:late))
-      (if (string-contains (car args) "--early")
-          (set! wnet #:early))
-      (if (string-contains (car args) "--bar")
-          (set! wnet #:bar))
-      (if (string-contains (car args) "--safe")
-          (set! wnet #:safe))
-      (if (string-contains (car args) "--pubeval")
-          (begin
-            (load "lib/pubeval/pubeval.scm")
-            (pubeval-rdwts)))
-      (if (string-contains (car args) "--swap")
-          (let ((tmp wnet))
-            (set! wnet bnet)
-            (set! bnet tmp)))
-      (if (string-contains (car args) "--wnet=")
-          (set! wnet (file-load-net (substring (car args) 7) #t)))
-      (if (string-contains (car args) "--bnet=")
-          (set! bnet (file-load-net (substring (car args) 7) #f)))
+      (if (string-contains (car args) "--opponent=")
+          (set! opponent
+                (symbol->keyword (string->symbol (substring (car args) 11)))))
+      (if (string-contains (car args) "--net=")
+          (set! net (file-load-net (substring (car args) 6))))
       (if (string-contains (car args) "--measure=")
           (set! measure (substring (car args) 10)))
       (if (string-contains (car args) "--measure-tests=")
@@ -179,8 +157,12 @@
           (set! %alpha (string->number (substring (car args) 8))))
       (if (string-contains (car args) "--numhid=")
           (set! numhid (string->number (substring (car args) 9)))))
-    (if (not wnet) (set! wnet (make-net numhid)))
-    (if (not bnet) (set! bnet (make-net numhid)))
+    (if (not net) (set! net (make-net numhid)))
+    (format #t "Opponent: ~s~%" opponent)
+    (if (eq? opponent #:pubeval)
+      (begin
+        (load "lib/pubeval/pubeval.scm")
+        (pubeval-rdwts)))
     (if (> threads 1)
         (begin
           (set! threadio (make-array #f threads))
@@ -206,7 +188,7 @@
                                                             (array-ref threadio i)
                                                             #f)))
                       (else
-                       (run-tdgammon wnet bnet
+                       (run-tdgammon net opponent
                                      (list (cons 'rl-gam rl-gam)
                                            (cons 'rl-lam rl-lam))
                                      #:save #t #:episodes episodes

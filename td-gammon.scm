@@ -1,13 +1,14 @@
 
-(define (file-load-net file which)
+(define (file-load-net file)
   (let ((net #f))
     (call-with-input-file file
       (lambda (p)
         (let ((x (read p)))
           (match (car x)
             (#:episode ;old network type
+             (error "old-network, not supported anymore")
              (set! net
-                   (car (cdr (if which (caddr x) (cadddr x)))))
+                   (car (cdr (caddr x))))
              ; if net is saved as a list, convert to vector
              (net-make-from
               (if (list? net)
@@ -15,40 +16,33 @@
                   net)))
             ; new network (an alist)
             (pair
-             (net-make-from
-              (if which
-                  (cdr (assq #:wnet x))
-                  (cdr (assq #:bnet x)))))))))))
+             (net-make-from (cdr (assq #:wnet x))))))))))
 
-(define (file-write-net file episode wnet bnet)
+(define (file-write-net file episode net)
   (call-with-output-file file
     (lambda (p)
       (format p "((#:episode . ~a)~%" episode)
       (format p "(#:wnet .~%")
-      (write (net-serialize wnet) p)
-      (format p "~%)~%(#:bnet .~%")
-      (write (net-serialize bnet) p)
-      (format p "))~%"))))
+      (write (net-serialize net) p)
+      (format p "~%)~%")
+      (format p ")~%"))))
 
-(define (net-input-output threadio src-wnet src-bnet wwin bwin episodes totsteps start-time)
+(define (net-input-output threadio net wwin bwin episodes totsteps start-time)
   ; send current network to master
-  (let ((wnet (net-copy src-wnet))
-        (bnet (net-copy src-bnet)))
-    (array-set! threadio
-                (list (net-copy src-wnet)
-                      (net-copy src-bnet)
-                      wwin bwin
-                      episodes
-                      totsteps
-                      start-time)
-                1)
-    ; get latest network from master
-    (let ((msg (array-ref threadio 0)))
-      (if (list? msg)
-          (match msg
-            ((new-wnet new-bnet)
-             (list new-wnet new-bnet)))
-          #f))))
+  (array-set! threadio
+              (list (net-copy net)
+                    wwin bwin
+                    episodes
+                    totsteps
+                    start-time)
+              1)
+  ; get latest network from master
+  (let ((msg (array-ref threadio 0)))
+    (if (list? msg)
+        (match msg
+          ((new-net)
+           (list new-net)))
+        #f)))
 
 ;----
 
@@ -172,20 +166,20 @@
     (else
      (list 0. #f))))
 
-(define (run-ml-learn bg rl net terminal-state loser)
+(define (run-ml-learn bg rl net terminal-state loser-input)
   ; need to rerun network to get fresh output at each layer
   ; needed by backprop
-  (net-run net (net-vxi net)) ; uses the best-path as input
+  (net-run net (or loser-input (net-vxi net))) ; uses the best-path as input
   (match (get-reward bg)
     ((reward terminal-state)
      ; sane state
-     (if loser
+     (if loser-input
          (assert (state-terminal? bg) "loser in non-terminal"))
      (let ((rewarr (make-typed-array 'f32 0. 2)))
        (if (> reward 0)
            (begin
-             (array-set! rewarr (if loser 0. 1.) 0)
-             (array-set! rewarr (if loser 1. 0.) 1)))
+             (array-set! rewarr (if loser-input 0. 1.) 0)
+             (array-set! rewarr (if loser-input 1. 0.) 1)))
        (run-tderr net rewarr rl terminal-state)))))
 
 (define (run-turn bg net dices)
@@ -197,31 +191,31 @@
    (else
      (style-take-action bg dices net))))
 
-(define* (run-tdgammon wnet bnet opts #:key episodes start-episode save verbose thread threadio
+(define* (run-tdgammon net oppo opts #:key episodes start-episode save verbose thread threadio
                        measure)
-  ; initialize theta, given by parameters wnet and bnet
+  ; initialize theta, given by parameters net
   (let* ((gam (get-opt opts 'rl-gam)) ; td-gamma
          (lam (get-opt opts 'rl-lam)) ; eligibility-trace decay
         (bg (setup-bg))
         (dices (roll-dices))
         ; eligibility-traces
-        (rlw (if (and (not measure) (array? wnet)) (make-rl gam lam wnet) #f))
-        (rlb (if (and (not measure) (array? bnet)) (make-rl gam lam bnet) #f))
+        (rlw (if (not measure) (make-rl gam lam net) #f))
+        (rlb (if (and (not measure) (eq? oppo #:self)) (make-rl gam lam net) #f))
         (wwin 0) (bwin 0)
         (terminal-state #f)
         (start-time (current-time))
-        (totsteps 0))
+        (totsteps 0)
+        ; need the previous players input (used at terminal state)
+        (ovxi (make-typed-array 'f32 *unspecified* 198)))
     ; loop for each episode
     (do ((episode 0 (1+ episode)))
         ((and episodes (>= episode episodes)))
       ; merge white and black networks
-      (if (and (array? wnet) (array? bnet))
-          (net-merge! bnet bnet wnet 0.5))
       ; save the network now and then
-      (if (and (not threadio) save wnet (> episode 0) (= (modulo episode 100) 0))
+      (if (and (not threadio) save (> episode 0) (= (modulo episode 100) 0))
           (file-write-net (format #f "~a-net-~a.txt" thread
                                   (+ (or start-episode 0) episode))
-                          (+ (or start-episode 0) episode) wnet bnet))
+                          (+ (or start-episode 0) episode) net))
       ; set s to initial state of episode
       (set! bg (setup-bg))
       (set-bg-ply! bg #t) ; whites turn
@@ -241,43 +235,42 @@
           (if *verbose* (bg-print-board bg))
           ; Set initial Vold
           (if (and rlw (= step 0))
-            (let ((vxi (net-vxi wnet))) ; lend networks-input array
+            (let ((vxi (net-vxi net))) ; lend networks-input array
               (rl-episode-clear rlw)
               (set-bg-input bg vxi)
-              (net-run wnet vxi)
-              (rl-init-step rlw wnet)))
+              (net-run net vxi)
+              (rl-init-step rlw net)))
           (if (and rlb (= step 1))
-            (let ((vxi (net-vxi bnet))) ; lend networks-input array
+            (let ((vxi (net-vxi net))) ; lend networks-input array
               (rl-episode-clear rlb)
               (set-bg-input bg vxi)
-              (net-run bnet vxi)
-              (rl-init-step rlb bnet)))
+              (net-run net vxi)
+              (rl-init-step rlb net)))
           ; a <- pi(s)  ; set a to action given by policy for s
           ; Take action a, observe r and next state s'
           ;     new state, s', consists of bg2 and new dice-roll
           ;     s =  { bg, dices }
           ;     s' = { best-bg, new-dice-roll }
-          (match (run-turn bg (if ply wnet bnet) dices)
+          (match (run-turn bg (if (eq? oppo #:self) net (if ply net oppo)) dices)
             (#f ; player can't move (example is all pieces are on the bar)
               ; since we have no moves to consider/evaluate, we just yield to the other player
              (assert (not (state-terminal? bg)))
              'ok)
             (new-bg
              (set! terminal-state (state-terminal? new-bg))
-             (if (if ply rlw rlb) ; ML-player
-                 ; learn winner network
-                 (run-ml-learn new-bg
-                               (if ply rlw rlb)
-                               (if ply wnet bnet)
-                               terminal-state #f))
-             (if (if ply rlb rlw) ; ML-player
-                 ; if in terminal-state, also let loser learn 
-                 (if terminal-state
-                   (run-ml-learn new-bg
-                                 (if ply rlb rlw)
-                                 (if ply bnet wnet)
-                                 terminal-state #t)))
+             (if (if ply rlw rlb) ; let ML-player learn the step
+               (run-ml-learn new-bg
+                             (if ply rlw rlb)
+                             net
+                             terminal-state #f))
+             ; if in terminal-state, also learn the loser experience
+             (if (and terminal-state (if ply rlb rlw)) ; ML-player
+               (run-ml-learn new-bg
+                             (if ply rlb rlw) ; use the previous turns player
+                             net
+                             terminal-state ovxi))
              ; evolve state
+             (array-scopy! (net-vxi net) ovxi)
              ; s <- s'
              (set! bg new-bg)))
           ; check if terminal-state
@@ -318,11 +311,10 @@
       ; if we are multithreading, report current net/stat
       (if threadio
           (match
-           (net-input-output threadio wnet bnet wwin bwin episode totsteps start-time)
+           (net-input-output threadio net wwin bwin episode totsteps start-time)
             (#f #f) ; no network updates from master
-            ((wnet2 bnet2) ; switch to updated networks
-             (net-transfer wnet wnet2)
-             (net-transfer bnet bnet2)))))
+            ((net) ; switch to updated networks
+             (net-transfer net net)))))
     (if threadio ; signal thread done
         (array-set! threadio #:done 1))
     (list wwin bwin)))
