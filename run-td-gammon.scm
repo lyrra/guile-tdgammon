@@ -188,7 +188,7 @@
                                                             (array-ref threadio i)
                                                             #f)))
                       (else
-                       (run-tdgammon net opponent
+                       (run-tdgammon (net-copy net) opponent
                                      (list (cons 'rl-gam rl-gam)
                                            (cons 'rl-lam rl-lam))
                                      #:save #t #:episodes episodes
