@@ -173,6 +173,7 @@
                       threadio)))
     (do ((i 0 (+ i 1)))
         ((>= i threads))
+      (usleep 100000)
       (let ((thunk (lambda ()
                      (format #t "Starting thread ~a/~a~%" i threads)
                      (gpu-init-thread i)

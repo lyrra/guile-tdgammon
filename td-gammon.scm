@@ -194,6 +194,7 @@
 (define* (run-tdgammon net oppo opts #:key episodes start-episode save verbose thread threadio
                        measure)
   ; initialize theta, given by parameters net
+  (format #t "Tr:~s net: ~s~%" thread net)
   (let* ((gam (get-opt opts 'rl-gam)) ; td-gamma
          (lam (get-opt opts 'rl-lam)) ; eligibility-trace decay
         (bg (setup-bg))
