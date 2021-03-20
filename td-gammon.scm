@@ -90,25 +90,46 @@
       (format #t "~a path: ~s~%" i path)
       (set! i (1+ i)))
     ; ---- print board ---------
+    (format #t "   ")
     (do ((p 0 (1+ p)))
         ((>= p 24))
       (format #t "~2d  " p))
-    (format #t "~%")
-    (let ()
-      (do ((p 0 (1+ p)))
-          ((>= p 24))
-        (let ((pcs 0))
-          (loop-for path in paths do
-            (let ((x (array-ref (bg-w-pts path) p)))
-              (if (and (> x 0)
-                       (or (= pcs 0)
-                           (< pcs 9)))
-                (set! pcs (+ pcs 1)))))
-          (if (> pcs 0)
-              (format #t "~2d  " pcs)
-              (format #t "    ")))))
-    (format #t "~%Please select path> ")
+    (format #t "~%W: ")
+    ; print white
+    (do ((p 0 (1+ p)))
+        ((>= p 24))
+      (let ((pcs (array-ref (bg-w-pts bg) p)))
+        (cond
+         ((> pcs 9) (format #t "+   "))
+         ((= pcs 0) (format #t "    "))
+         (else (format #t "~2d  " pcs)))))
+    (format #t "  bar: ~d rem: ~d~%" (bg-w-bar bg) (bg-w-rem bg))
+    ; print black
+    (format #t "B: ")
+    (do ((p 0 (1+ p)))
+        ((>= p 24))
+      (let ((pcs (array-ref (bg-b-pts bg) p)))
+        (cond
+         ((> pcs 9) (format #t "+   "))
+         ((= pcs 0) (format #t "    "))
+         (else (format #t "~2d  " pcs)))))
+    (format #t "  bar: ~d rem: ~d~%" (bg-b-bar bg) (bg-b-rem bg))
+;   (format #t "~%Filter: ")
+;   ; ---- print paths summary---------
+;   ; print white
+;   (do ((p 0 (1+ p)))
+;       ((>= p 24))
+;     (let ((pcs 0))
+;       (loop-for path in paths do
+;         (let ((x (array-ref (bg-w-pts path) p)))
+;           (if (and (> x 0)
+;                    (< pcs 9))
+;             (set! pcs (+ pcs 1)))))
+;       (if (> pcs 0)
+;           (format #t "~2d  " pcs)
+;           (format #t "    "))))
     ; --------------------------
+    (format #t "~% dices: ~a Please select path> " dices)
     (let ((n (read)))
       (list-ref paths n))))))
 
