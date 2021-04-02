@@ -151,7 +151,7 @@
       ; merge white and black networks
       ; save the network now and then
       (if (and (not threadio) save (> episode 0) (= (modulo episode 100) 0))
-          (file-write-net (format #f "~a-net-~a.txt" thread
+          (file-write-net (format #f "~a-net-~a.net" thread
                                   (+ (or start-episode 0) episode))
                           (+ (or start-episode 0) episode) net))
       ; set s to initial state of episode

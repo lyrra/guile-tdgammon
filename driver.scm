@@ -86,7 +86,7 @@
                    (> totepisodes (+ cur-file-save-episode file-save-interval)))
               (begin
                 (set! cur-file-save-episode (+ cur-file-save-episode file-save-interval))
-                (file-write-net (format #f "~a-net-~a.txt" fileprefix
+                (file-write-net (format #f "~a-net-~a.net" fileprefix
                                         (+ start-episode totepisodes))
                                 (+ start-episode totepisodes) net))))
         (sleep 4))))
