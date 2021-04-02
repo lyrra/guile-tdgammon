@@ -257,3 +257,16 @@
        (list 1. #t)))
     (else
      (list 0. #f))))
+
+(define (bg-validate bg)
+  ; ensure always 15 pieces is present on board+removed+bar
+  (let ((wtot 0)
+        (btot 0))
+    (array-for-each (lambda (x) (set! wtot (+ wtot x))) (bg-w-pts bg))
+    (array-for-each (lambda (x) (set! btot (+ btot x))) (bg-b-pts bg))
+    (set! wtot (+ wtot (bg-w-rem bg)))
+    (set! wtot (+ wtot (bg-w-bar bg)))
+    (set! btot (+ btot (bg-b-rem bg)))
+    (set! btot (+ btot (bg-b-bar bg)))
+    (assert (= wtot 15) (format #f "w-pcs/=15:~a" wtot))
+    (assert (= btot 15) (format #f "b-pcs/=15:~a" btot))))
