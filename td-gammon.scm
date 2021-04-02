@@ -7,31 +7,8 @@
 (define (policy-take-action bg net dices)
   (let ((paths (let ((lst (bg-find-all-states bg dices)))
                  (if (bg-ply bg)
-                     lst (reverse lst))))
-        (bout -999)
-        (bpath #f)
-        (bvxi (make-typed-array 'f32 *unspecified* 198))
-        (vxi (net-vxi net))) ; lend networks-input array
-    (loop-for path in paths do
-      ;(LLL "  path: ~s~%" path)
-      (let ((bg path))
-        (set-bg-input bg vxi)
-        (net-run net vxi)
-        (let ((out (net-vyo net)))
-          ; FIX: should we consider white(idx-0) > black(idx-1) ?
-          (if (> (- (array-ref out 0) (array-ref out 1)) bout)
-              (begin ; keep best-scored
-                ;(LLL "  best-net-out: ~s~%" out)
-                (set! bout (- (array-ref out 0) (array-ref out 1)))
-                (set! bpath path)
-                (array-scopy! vxi bvxi))))))
-    (if bpath ; if path found, ie didn't terminate
-        (begin
-          ; restore best-input to network (ie we keep this future)
-          (net-set-input net bvxi)
-          bpath)
-        ; got terminal-state
-        #f)))
+                     lst (reverse lst)))))
+    (rl-policy-greedy-action net bg paths)))
 
 (define (human-take-action bg dices)
   (let ((paths (bg-find-all-states bg dices))
