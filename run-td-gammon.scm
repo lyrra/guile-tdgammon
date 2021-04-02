@@ -22,6 +22,7 @@
 
 (load "net.scm")
 (load "rl.scm")
+(load "agent.scm")
 (load "backgammon.scm")
 (load "td-gammon.scm")
 (load "measure.scm")

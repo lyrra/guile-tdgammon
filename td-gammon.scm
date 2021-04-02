@@ -118,14 +118,15 @@
                (array-set! rewarr (if loser-input 1. 0.) 1)))
          (run-tderr rewarr rl terminal-state))))))
 
-(define (run-turn bg net dices)
-  (cond
-   ((array? net) ; player is controlled by artificial type of neural-network
-     (policy-take-action bg net dices))
-   ((eq? net #:human) ; human type of neural-network controls player
-     (human-take-action bg dices))
-   (else
-     (style-take-action bg dices net))))
+(define (run-turn bg agent dices)
+  (let ((net (agent-net agent)))
+    (cond
+     ((array? net) ; player is controlled by artificial type of neural-network
+      (policy-take-action bg net dices))
+     ((eq? net #:human) ; human type of neural-network controls player
+      (human-take-action bg dices))
+     (else
+      (style-take-action bg dices net)))))
 
 (define* (run-tdgammon net oppo opts #:key episodes start-episode save verbose thread threadio
                        measure)
@@ -138,12 +139,12 @@
         ; eligibility-traces
         (rlw (if (not measure) (new-rl gam lam net) #f))
         (rlb (if (and (not measure) (eq? oppo #:self)) (new-rl gam lam net) #f))
+        (agentw (new-agent net rlw))
+        (agentb (new-agent (if (eq? oppo #:self) net oppo) rlb))
         (wwin 0) (bwin 0)
         (terminal-state #f)
         (start-time (current-time))
-        (totsteps 0)
-        ; need the previous players input (used at terminal state)
-        (ovxi (make-typed-array 'f32 *unspecified* 198)))
+        (totsteps 0))
     ; loop for each episode
     (do ((episode 0 (1+ episode)))
         ((and episodes (>= episode episodes)))
@@ -168,25 +169,14 @@
                   (bg-w-bar bg) (bg-b-bar bg)
                   (bg-w-rem bg) (bg-b-rem bg))
           (if *verbose* (bg-print-board bg))
-          ; Set initial Vold
-          (if (and rlw (= step 0))
-            (let ((vxi (net-vxi net))) ; lend networks-input array
-              (rl-episode-clear rlw)
-              (set-bg-input bg vxi)
-              (net-run net vxi)
-              (rl-init-step rlw)))
-          (if (and rlb (= step 1))
-            (let ((vxi (net-vxi net))) ; lend networks-input array
-              (rl-episode-clear rlb)
-              (set-bg-input bg vxi)
-              (net-run net vxi)
-              (rl-init-step rlb)))
+          (if (and rlw (= step 0)) (agent-init agentw bg))
+          (if (and rlb (= step 1)) (agent-init agentb bg))
           ; a <- pi(s)  ; set a to action given by policy for s
           ; Take action a, observe r and next state s'
           ;     new state, s', consists of bg2 and new dice-roll
           ;     s =  { bg, dices }
           ;     s' = { best-bg, new-dice-roll }
-          (match (run-turn bg (if (eq? oppo #:self) net (if ply net oppo)) dices)
+          (match (run-turn bg (if ply agentw agentb) dices)
             (#f ; player can't move (example is all pieces are on the bar)
               ; since we have no moves to consider/evaluate, we just yield to the other player
              (assert (not (state-terminal? bg)))
@@ -201,9 +191,10 @@
              (if (and terminal-state (if ply rlb rlw)) ; ML-player
                (run-ml-learn new-bg
                              (if ply rlb rlw) ; use the previous turns player
-                             terminal-state ovxi))
+                             terminal-state
+                             (agent-ovxi (if ply agentb agentw))))
              ; evolve state
-             (array-scopy! (net-vxi net) ovxi)
+             (agent-end-turn (if ply agentw agentb))
              ; s <- s'
              (set! bg new-bg)))
           ; check if terminal-state
