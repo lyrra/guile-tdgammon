@@ -1,10 +1,5 @@
 (import (ice-9 format))
 
-(define (indent x)
-  (do ((i 0 (1+ i)))
-      ((>= i x))
-    (format #t " ")))
-
 (define-record-type <bg>
   (make-bg)
   bg?
@@ -246,3 +241,19 @@
                      ((> d2 d1) (list d2 d1)) ; d1 must be >= d2
                      ((= d2 d1) (list d1 d1 d1 d1))
                      (else (list d1 d2))))))
+
+(define (state-terminal? bg)
+  (or (= (bg-w-rem bg) 15) ; white has won
+      (= (bg-b-rem bg) 15))) ; black has won
+
+(define (get-reward bg)
+  ; assuming we can make a move, see if the move has put us in an terminal position
+  (cond
+    ; Until s' is terminal (bg2 is part of s')
+    ((state-terminal? bg)
+     (let ((ply (bg-ply bg))) ; who's turn it was, and receives the reward
+       ; in terminal state, we get a reward of 1
+       (assert (= (if (bg-ply bg) (bg-w-rem bg) (bg-b-rem bg)) 15) "get-reward, not terminal!")
+       (list 1. #t)))
+    (else
+     (list 0. #f))))

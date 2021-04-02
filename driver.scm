@@ -1,4 +1,21 @@
 
+(define (net-input-output threadio net wwin bwin episodes totsteps start-time)
+  ; send current network to master
+  (array-set! threadio
+              (list (net-copy net)
+                    wwin bwin
+                    episodes
+                    totsteps
+                    start-time)
+              1)
+  ; get latest network from master
+  (let ((msg (array-ref threadio 0)))
+    (if (list? msg)
+        (match msg
+          ((new-net)
+           (list new-net)))
+        #f)))
+
 (define (handle-threads fileprefix threadio start-episode file-save-interval)
   (format #t "Waiting for threads to finish~%")
   (let ((done #f)

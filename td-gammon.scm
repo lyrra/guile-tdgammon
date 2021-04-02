@@ -1,51 +1,4 @@
 
-(define (file-load-net file)
-  (let ((net #f))
-    (call-with-input-file file
-      (lambda (p)
-        (let ((x (read p)))
-          (match (car x)
-            (#:episode ;old network type
-             (error "old-network, not supported anymore")
-             (set! net
-                   (car (cdr (caddr x))))
-             ; if net is saved as a list, convert to vector
-             (net-make-from
-              (if (list? net)
-                  (list->array 1 net)
-                  net)))
-            ; new network (an alist)
-            (pair
-             (net-make-from (cdr (assq #:wnet x))))))))))
-
-(define (file-write-net file episode net)
-  (call-with-output-file file
-    (lambda (p)
-      (format p "((#:episode . ~a)~%" episode)
-      (format p "(#:wnet .~%")
-      (write (net-serialize net) p)
-      (format p "~%)~%")
-      (format p ")~%"))))
-
-(define (net-input-output threadio net wwin bwin episodes totsteps start-time)
-  ; send current network to master
-  (array-set! threadio
-              (list (net-copy net)
-                    wwin bwin
-                    episodes
-                    totsteps
-                    start-time)
-              1)
-  ; get latest network from master
-  (let ((msg (array-ref threadio 0)))
-    (if (list? msg)
-        (match msg
-          ((new-net)
-           (list new-net)))
-        #f)))
-
-;----
-
 (define (roll-dices)
   (let ((d1 (1+ (truncate (random 6 *rands*))))
         (d2 (1+ (truncate (random 6 *rands*)))))
@@ -170,22 +123,6 @@
            (car (last-pair paths))
            (car (last-pair sels)))))
       ((procedure? style) (style bg paths))))))
-
-(define (state-terminal? bg)
-  (or (= (bg-w-rem bg) 15) ; white has won
-      (= (bg-b-rem bg) 15))) ; black has won
-
-(define (get-reward bg)
-  ; assuming we can make a move, see if the move has put us in an terminal position
-  (cond
-    ; Until s' is terminal (bg2 is part of s')
-    ((state-terminal? bg)
-     (let ((ply (bg-ply bg))) ; who's turn it was, and receives the reward
-       ; in terminal state, we get a reward of 1
-       (assert (= (if (bg-ply bg) (bg-w-rem bg) (bg-b-rem bg)) 15) "get-reward, not terminal!")
-       (list 1. #t)))
-    (else
-     (list 0. #f))))
 
 (define (run-ml-learn bg rl net terminal-state loser-input)
   ; need to rerun network to get fresh output at each layer
