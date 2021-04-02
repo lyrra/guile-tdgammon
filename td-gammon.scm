@@ -158,8 +158,6 @@
       (set-bg-ply! bg #t) ; whites turn
       (set! dices (roll-dices))
       (set! terminal-state #f)
-      (if rlw (rl-episode-clear rlw))
-      (if rlb (rl-episode-clear rlb))
       ; get initial action here
       ; Repeat for each step in episode:
       (do ((step 0 (1+ step)))
