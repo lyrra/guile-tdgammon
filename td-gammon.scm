@@ -1,7 +1,7 @@
 
 (define (roll-dices)
-  (let ((d1 (1+ (truncate (random 6 *rands*))))
-        (d2 (1+ (truncate (random 6 *rands*)))))
+  (let ((d1 (1+ (truncate (random-number 6))))
+        (d2 (1+ (truncate (random-number 6)))))
     (list d1 d2)))
 
 (define (policy-take-action bg net dices)
@@ -70,7 +70,7 @@
         #f
         (cond
       ((eq? style #:random)
-       (list-ref paths (random (length paths))))
+       (list-ref paths (random-number (length paths))))
       ((eq? style #:early)
        (car paths))
       ((eq? style #:late)

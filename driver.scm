@@ -93,7 +93,6 @@
   (format #t "All threads are done~%"))
 
 (define (main)
-  (init-rand)
   (sigmoid-init)
   (gpu-init)
   (let* ((net #f)
@@ -111,7 +110,8 @@
          (numhid 40)  ; number of hidden neurons
          (rl-gam 0.9) ; td-gamma
          (rl-lam 0.7) ; eligibility-trace decay
-         (file-prefix "v0"))
+         (file-prefix "v0")
+         (seed (current-time)))
     (do ((args (command-line) (cdr args)))
         ((eq? args '()))
       (format #t "  arg: ~s~%" (car args))
@@ -145,7 +145,11 @@
       (if (string-contains (car args) "--alpha=")
           (set! %alpha (string->number (substring (car args) 8))))
       (if (string-contains (car args) "--numhid=")
-          (set! numhid (string->number (substring (car args) 9)))))
+          (set! numhid (string->number (substring (car args) 9))))
+      ; environment
+      (if (string-contains (car args) "--seed=")
+          (set! seed (string->number (substring (car args) 7)))))
+    (init-rand seed)
     (if (not net) (set! net (make-net numhid)))
     (format #t "Opponent: ~s~%" opponent)
     (if (eq? opponent #:pubeval)
