@@ -101,21 +101,22 @@
            (car (last-pair sels)))))
       ((procedure? style) (style bg paths))))))
 
-(define (run-ml-learn bg rl net terminal-state loser-input)
-  ; need to rerun network to get fresh output at each layer
-  ; needed by backprop
-  (net-run net (or loser-input (net-vxi net))) ; uses the best-path as input
-  (match (get-reward bg)
-    ((reward terminal-state)
-     ; sane state
-     (if loser-input
-         (assert (state-terminal? bg) "loser in non-terminal"))
-     (let ((rewarr (make-typed-array 'f32 0. 2)))
-       (if (> reward 0)
-           (begin
-             (array-set! rewarr (if loser-input 0. 1.) 0)
-             (array-set! rewarr (if loser-input 1. 0.) 1)))
-       (run-tderr net rewarr rl terminal-state)))))
+(define (run-ml-learn bg rl terminal-state loser-input)
+  (let ((net (rl-net rl)))
+    ; need to rerun network to get fresh output at each layer
+    ; needed by backprop
+    (net-run net (or loser-input (net-vxi net))) ; uses the best-path as input
+    (match (get-reward bg)
+      ((reward terminal-state)
+       ; sane state
+       (if loser-input
+           (assert (state-terminal? bg) "loser in non-terminal"))
+       (let ((rewarr (make-typed-array 'f32 0. 2)))
+         (if (> reward 0)
+             (begin
+               (array-set! rewarr (if loser-input 0. 1.) 0)
+               (array-set! rewarr (if loser-input 1. 0.) 1)))
+         (run-tderr rewarr rl terminal-state))))))
 
 (define (run-turn bg net dices)
   (cond
@@ -135,8 +136,8 @@
         (bg (setup-bg))
         (dices (roll-dices))
         ; eligibility-traces
-        (rlw (if (not measure) (make-rl gam lam net) #f))
-        (rlb (if (and (not measure) (eq? oppo #:self)) (make-rl gam lam net) #f))
+        (rlw (if (not measure) (new-rl gam lam net) #f))
+        (rlb (if (and (not measure) (eq? oppo #:self)) (new-rl gam lam net) #f))
         (wwin 0) (bwin 0)
         (terminal-state #f)
         (start-time (current-time))
@@ -175,13 +176,13 @@
               (rl-episode-clear rlw)
               (set-bg-input bg vxi)
               (net-run net vxi)
-              (rl-init-step rlw net)))
+              (rl-init-step rlw)))
           (if (and rlb (= step 1))
             (let ((vxi (net-vxi net))) ; lend networks-input array
               (rl-episode-clear rlb)
               (set-bg-input bg vxi)
               (net-run net vxi)
-              (rl-init-step rlb net)))
+              (rl-init-step rlb)))
           ; a <- pi(s)  ; set a to action given by policy for s
           ; Take action a, observe r and next state s'
           ;     new state, s', consists of bg2 and new dice-roll
@@ -197,13 +198,11 @@
              (if (if ply rlw rlb) ; let ML-player learn the step
                (run-ml-learn new-bg
                              (if ply rlw rlb)
-                             net
                              terminal-state #f))
              ; if in terminal-state, also learn the loser experience
              (if (and terminal-state (if ply rlb rlw)) ; ML-player
                (run-ml-learn new-bg
                              (if ply rlb rlw) ; use the previous turns player
-                             net
                              terminal-state ovxi))
              ; evolve state
              (array-scopy! (net-vxi net) ovxi)
