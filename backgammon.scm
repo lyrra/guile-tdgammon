@@ -246,17 +246,6 @@
   (or (= (bg-w-rem bg) 15) ; white has won
       (= (bg-b-rem bg) 15))) ; black has won
 
-(define (get-reward bg)
-  ; assuming we can make a move, see if the move has put us in an terminal position
-  (cond
-    ; Until s' is terminal (bg2 is part of s')
-    ((state-terminal? bg)
-     (let ((ply (bg-ply bg))) ; who's turn it was, and receives the reward
-       ; in terminal state, we get a reward of 1
-       (assert (= (if (bg-ply bg) (bg-w-rem bg) (bg-b-rem bg)) 15) "get-reward, not terminal!")
-       (list 1. #t)))
-    (else
-     (list 0. #f))))
 
 (define (bg-validate bg)
   ; ensure always 15 pieces is present on board+removed+bar
@@ -270,3 +259,17 @@
     (set! btot (+ btot (bg-b-bar bg)))
     (assert (= wtot 15) (format #f "w-pcs/=15:~a" wtot))
     (assert (= btot 15) (format #f "b-pcs/=15:~a" btot))))
+
+(define (get-reward bg ply)
+  ; assuming we can make a move, see if the move has put us in an terminal position
+  (cond
+    ; Until s' is terminal (bg2 is part of s')
+    ((state-terminal? bg)
+     (let ((next-ply (bg-ply bg))) ; who's turn it was, and receives the reward
+       ; in terminal state, we get a reward of 1
+       (assert (= (if next-ply (bg-w-rem bg) (bg-b-rem bg)) 15) "get-reward, not terminal!")
+       (if (eq? ply next-ply)
+         (list 1. #t)
+         (list -1. #t))))
+    (else
+     (list 0. #f))))

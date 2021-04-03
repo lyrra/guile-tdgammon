@@ -101,22 +101,6 @@
            (car (last-pair sels)))))
       ((procedure? style) (style bg paths))))))
 
-(define (run-ml-learn bg rl terminal-state loser-input)
-  (let ((net (rl-net rl)))
-    ; need to rerun network to get fresh output at each layer
-    ; needed by backprop
-    (net-run net (or loser-input (net-vxi net))) ; uses the best-path as input
-    (match (get-reward bg)
-      ((reward terminal-state)
-       ; sane state
-       (if loser-input
-           (assert (state-terminal? bg) "loser in non-terminal"))
-       (let ((rewarr (make-typed-array 'f32 0. 2)))
-         (if (> reward 0)
-             (begin
-               (array-set! rewarr (if loser-input 0. 1.) 0)
-               (array-set! rewarr (if loser-input 1. 0.) 1)))
-         (run-tderr rewarr rl terminal-state))))))
 
 (define (run-turn bg agent dices)
   (let ((net (agent-net agent)))
@@ -186,13 +170,15 @@
              (if (if ply rlw rlb) ; let ML-player learn the step
                (run-ml-learn new-bg
                              (if ply rlw rlb)
-                             terminal-state #f))
+                             (get-reward new-bg ply)))
              ; if in terminal-state, also learn the loser experience
-             (if (and terminal-state (if ply rlb rlw)) ; ML-player
+             (when (and terminal-state (if ply rlb rlw)) ; ML-player
+               (assert (state-terminal? new-bg) "loser in non-terminal")
+               ; since we are using the same network (self-play) bring back the old/half-step input
+               (array-scopy! (agent-ovxi (if ply agentb agentw)) (net-vxi net))
                (run-ml-learn new-bg
                              (if ply rlb rlw) ; use the previous turns player
-                             terminal-state
-                             (agent-ovxi (if ply agentb agentw))))
+                             (get-reward new-bg (not ply))))
              ; evolve state
              (agent-end-turn (if ply agentw agentb))
              ; s <- s'
