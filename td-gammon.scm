@@ -116,13 +116,11 @@
                        measure)
   ; initialize theta, given by parameters net
   (format #t "Tr:~s net: ~s~%" thread net)
-  (let* ((gam (get-opt opts 'rl-gam)) ; td-gamma
-         (lam (get-opt opts 'rl-lam)) ; eligibility-trace decay
-        (bg (setup-bg))
+  (let* ((bg (setup-bg))
         (dices (roll-dices))
         ; eligibility-traces
-        (rlw (if (not measure) (new-rl gam lam net) #f))
-        (rlb (if (and (not measure) (eq? oppo #:self)) (new-rl gam lam net) #f))
+        (rlw (if (not measure) (new-rl opts net) #f))
+        (rlb (if (and (not measure) (eq? oppo #:self)) (new-rl opts net) #f))
         (agentw (new-agent net rlw))
         (agentb (new-agent (if (eq? oppo #:self) net oppo) rlb))
         (wwin 0) (bwin 0)
