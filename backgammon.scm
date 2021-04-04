@@ -219,10 +219,23 @@
                 (let* ((newpos (+ p (* (car dices) dir)))
                        (newpcs (1- pcs)))
                   ; validate move
-                  (if (or (< newpos 0) ; piece has moved outside of board
-                          (> newpos 23) ; piece has moved outside of board
+                  (if (or (and (< newpos 0) ; whites-piece has moved outside of board
+                               (let ((v #t)) ; ensure no points are outside home
+                                 (do ((i 6 (1+ i)))
+                                     ((>= i 24))
+                                   (if (> (array-ref arr i) 0)
+                                       (set! v #f)))
+                                 v))
+                          (and (> newpos 23) ; blacks-piece has moved outside of board
+                               (let ((v #t)) ; ensure no points are outside home
+                                 (do ((i 0 (1+ i)))
+                                     ((>= i 18))
+                                   (if (> (array-ref arr i) 0)
+                                       (set! v #f)))
+                                 v))
                           ; if piece lands on board, it mustn't be occupied
-                          (< (array-ref brr newpos) 2)) ; max one opponent piece
+                          (and (>= newpos 0) (< newpos 24)
+                               (< (array-ref brr newpos) 2))) ; max one opponent piece
                     (let ((nbg (bg-apply-move (copy-bg bg) p newpos newpcs ply)))
                       (set! paths
                             (append paths
