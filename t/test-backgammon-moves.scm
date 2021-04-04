@@ -141,3 +141,13 @@
     (array-inc! (bg-b-pts bg) 3 1)
     (let ((paths (bg-find-all-states bg (list 2 4))))
       (test-assert (= (length paths) 2) "wrong number of paths"))))
+
+(define-test (test-backgammon-remove-pts)
+  (let ((bg (setup-bg)))
+    (array-zero! (bg-w-pts bg))
+    (array-zero! (bg-b-pts bg))
+    (array-inc! (bg-w-pts bg) 3 1)
+    (array-inc! (bg-w-pts bg) 23 1)
+    (_test-backgammon-state-valid bg)
+    (let ((paths (bg-find-all-states bg (list 4 4))))
+      (test-assert (= (length paths) 2) "wrong number of paths"))))
