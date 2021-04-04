@@ -1,3 +1,9 @@
+(define (test-report-fail-backgammon bg dices paths)
+  (format #t "  board: ~s~%" bg)
+  (format #t "  dices: ~s~%" dices)
+  (loop-for path in paths do
+    (format #t " - path: ~s~%" path)))
+
 
 (define (odd-dices)
   (let ((dices #f)
@@ -20,10 +26,12 @@
     (array-zero! (bg-w-pts bg))
     (array-inc! (bg-w-pts bg)  0 1)
     (array-inc! (bg-b-pts bg) 23 1)
-    (let ((paths (bg-find-all-states bg (odd-dices))))
+    (let* ((dices (odd-dices))
+           (paths (bg-find-all-states bg dices)))
       (test-assert (= (length paths) 1)
-                   (format #f "expected 1 feasible path, got ~a"
-                           (length paths))))))
+                   (lambda ()
+                     (format #t "expected 1 feasible path, got ~a~%" (length paths))
+                     (test-report-fail-backgammon bg dices paths))))))
 
 (define-test (test-backgammon-path-1mv)
   (let ((bg (setup-bg)))
@@ -31,10 +39,12 @@
     (loop-subtests (i)
       (array-zero! (bg-w-pts bg))
       (array-inc! (bg-w-pts bg) (+ 6 (random 8)) 1)
-      (let ((paths (bg-find-all-states bg (odd-dices))))
+      (let* ((dices (odd-dices))
+             (paths (bg-find-all-states bg dices)))
         (test-assert (= (length paths) 1)
-                     (format #f "expected 1 feasible path, got ~a"
-                             (length paths)))))))
+                     (lambda ()
+                       (format #f "expected 1 feasible path, got ~a~%" (length paths))
+                       (test-report-fail-backgammon bg dices paths)))))))
 
 (define-test (test-backgammon-path-2mv)
   (let ((bg (setup-bg)))
@@ -46,8 +56,9 @@
       (let* ((dices (odd-dices))
              (paths (bg-find-all-states bg dices)))
         (test-assert (> (length paths) 1)
-                     (format #f "expected >1 feasible paths, got ~a"
-                             (length paths)))))))
+                     (lambda ()
+                       (format #f "expected >1 feasible paths, got ~a~%" (length paths))
+                       (test-report-fail-backgammon bg dices paths)))))))
 
 (define (_test-backgammon-bar-pos_ ply)
   (let* ((bg (setup-bg))
@@ -65,8 +76,9 @@
       (set-bg-b-rem! bg 14)))
     (let ((paths (bg-find-all-states bg dices)))
         (test-assert (= (length paths) 1)
-                     (format #f "expected 1 feasible path, got ~a"
-                             (length paths)))
+                     (lambda ()
+                       (format #f "expected 1 feasible path, got ~a~%" (length paths))
+                       (test-report-fail-backgammon bg dices paths)))
         (let ((bg2 (car paths)))
           (cond
            (ply
@@ -139,11 +151,15 @@
     (_test-backgammon-state-valid bg)
     (let ((paths (bg-find-all-states bg (list 2 4))))
       (test-assert (= (length paths) 1)
-                   (format #f "wrong number of paths: ~a, expected 1" (length paths))))
+                   (lambda ()
+                     (format #f "wrong number of paths: ~a, expected 1~%" (length paths))
+                     (test-report-fail-backgammon bg (list 2 4) paths))))
     (array-inc! (bg-b-pts bg) 3 1)
     (let ((paths (bg-find-all-states bg (list 2 4))))
       (test-assert (= (length paths) 2)
-                   (format #f "wrong number of paths: ~a, expected 2" (length paths))))))
+                   (lambda ()
+                     (format #f "wrong number of paths: ~a, expected 2~%" (length paths))
+                     (test-report-fail-backgammon bg (list 2 4) paths))))))
 
 (define-test (test-backgammon-remove-pts)
   (let ((bg (setup-bg)))
@@ -155,7 +171,9 @@
     (_test-backgammon-state-valid bg)
     (let ((paths (bg-find-all-states bg (list 4 4))))
       (test-assert (= (length paths) 1)
-                   (format #f "wrong number of paths: ~a, expected 1" (length paths)))
+                   (lambda ()
+                     (format #f "wrong number of paths: ~a, expected 1~%" (length paths))
+                     (test-report-fail-backgammon bg (list 4 4) paths)))
       (loop-for bg in paths do
         (assert (= (bg-w-rem bg) 0) "white-removed!")))
     ;
@@ -164,7 +182,9 @@
     (_test-backgammon-state-valid bg)
     (let ((paths (bg-find-all-states bg (list 4 4))))
       (test-assert (= (length paths) 1)
-                   (format #f "wrong number of paths: ~a, expected 1" (length paths))))
+                   (lambda ()
+                     (format #t "wrong number of paths: ~a, expected 1~%" (length paths))
+                     (test-report-fail-backgammon bg (list 4 4) paths))))
     ;
     (set-bg-ply! bg #f) ; blacks turn
     (array-zero! (bg-w-pts bg))
@@ -174,8 +194,13 @@
     (_test-backgammon-state-valid bg)
     (let ((paths (bg-find-all-states bg (list 1 2))))
       (test-assert (= (length paths) 2)
-                   (format #f "wrong number of paths: ~a, expected 1" (length paths)))
+                   (lambda ()
+                     (format #t "wrong number of paths: ~a, expected 2~%" (length paths))
+                     (test-report-fail-backgammon bg (list 1 2) paths)))
       (let ((totrem 0))
         (loop-for path in paths do
           (set! totrem (+ totrem (bg-b-rem path))))
-        (assert (= totrem 1) (format #f "black-removed, got ~a, expected ~a" totrem 1))))))
+        (assert (= totrem 1)
+                (lambda ()
+                  (format #t "black-removed, got ~a, expected ~a~%" totrem 1)
+                  (test-report-fail-backgammon bg (list 1 2) paths)))))))
