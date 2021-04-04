@@ -231,16 +231,51 @@
             (list bg)
             paths)))))))))
 
+(define (bg-array-equal? pts1 pts2)
+  (let ((q #t))
+    (do ((i 0 (1+ i)))
+        ((>= i (array-length pts1)))
+      (if (not (= (array-ref pts1 i)
+                  (array-ref pts2 i)))
+          (set! q #f)))
+    q))
+
+(define (bg-state-equal? bg1 bg2)
+  (and (eq? (bg-ply bg1) (bg-ply bg2))
+       (= (bg-w-bar bg1) (bg-w-bar bg2))
+       (= (bg-b-bar bg1) (bg-b-bar bg2))
+       (= (bg-w-rem bg1) (bg-w-rem bg2))
+       (= (bg-b-rem bg1) (bg-b-rem bg2))
+       (bg-array-equal? (bg-w-pts bg1) (bg-w-pts bg2))
+       (bg-array-equal? (bg-b-pts bg1) (bg-b-pts bg2))))
+
 (define (bg-find-all-states bg dices)
   (let ((d1 (car dices))
         (d2 (cadr dices)))
     ;(format #t "  find-all-states ply:~a dice: [~a,~a]~%" ply d1 d2)
     ; scan all possible moves in 'arr' using dices d1 and d2
-    (bg-fold-states bg
-                    (cond
-                     ((> d2 d1) (list d2 d1)) ; d1 must be >= d2
-                     ((= d2 d1) (list d1 d1 d1 d1))
-                     (else (list d1 d2))))))
+    (let ((paths (bg-fold-states bg (cond
+                                     ((> d2 d1) (list d2 d1)) ; d1 must be >= d2
+                                     ((= d2 d1) (list d1 d1 d1 d1))
+                                     (else (list d1 d2)))))
+          (paths2 (if (not (= d1 d2))
+                      (bg-fold-states bg (cond
+                                          ((> d2 d1) (list d1 d2))
+                                          (else (list d2 d1))))
+                      #f)))
+      (when paths2
+        (do ((pp2 paths2 (cdr pp2)))
+            ((eq? '() pp2))
+          (let ((p2 (car pp2))
+                (found #f))
+            (do ((pp paths (cdr pp)))
+                ((eq? '() pp))
+              (let ((p (car pp)))
+                (if (bg-state-equal? p p2)
+                    (set! found #t))))
+            (if (not found)
+                (set! paths (cons p2 paths))))))
+      paths)))
 
 (define (state-terminal? bg)
   (or (= (bg-w-rem bg) 15) ; white has won
