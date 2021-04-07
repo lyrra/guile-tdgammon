@@ -100,6 +100,7 @@
          (measure #f)
          (measure-tests "prelbs")
          (episodes #f)
+         (learn #t)
          (start-episode 0)
          (verbose #f)
          ; ---- debug stuff ----
@@ -112,18 +113,24 @@
          (rl-lam 0.7) ; eligibility-trace decay
          (file-prefix "v0")
          (seed (current-time)))
+    ; FIX: dont do any operations (driven by command-line) here,
+    ;      instead just build up an configuration which is passed on
     (do ((args (command-line) (cdr args)))
         ((eq? args '()))
       (format #t "  arg: ~s~%" (car args))
       (if (string-contains (car args) "--prefix=")
           (set! file-prefix (substring (car args) 9)))
-      (if (string-contains (car args) "--opponent=")
-          (set! opponent
-                (symbol->keyword (string->symbol (substring (car args) 11)))))
-      (if (string-contains (car args) "--net=")
-          (set! net (file-load-net (substring (car args) 6))))
+      (when (string-contains (car args) "--opponent=")
+        (set! opponent (substring (car args) 11))
+        (if (string-contains opponent ".net")
+            (set! opponent (file-load-net opponent))
+            (set! opponent (symbol->keyword (string->symbol opponent)))))
+      (when (string-contains (car args) "--net=")
+        (if (not net)
+          (set! net (file-load-net (substring (car args) 6)))
+          (set! opponent (file-load-net (substring (car args) 6)))))
       (if (string-contains (car args) "--measure=")
-          (set! measure (substring (car args) 10)))
+          (set! measure (file-load-net (substring (car args) 10))))
       (if (string-contains (car args) "--measure-tests=")
           (set! measure-tests (substring (car args) 16)))
       (if (string-contains (car args) "--episodes=")
@@ -137,6 +144,8 @@
       (if (string-contains (car args) "--threads=")
           (set! threads (string->number (substring (car args) 10))))
       ; RL parameters
+      (if (string-contains (car args) "--rl=no") ; disable learning
+          (set! learn #f))
       (if (string-contains (car args) "--rl-lam=") ; td-gamma
           (set! rl-lam (string->number (substring (car args) 9))))
       (if (string-contains (car args) "--rl-gam=") ; eligibility-trace
@@ -151,7 +160,6 @@
           (set! seed (string->number (substring (car args) 7)))))
     (init-rand seed)
     (if (not net) (set! net (make-net numhid)))
-    (format #t "Opponent: ~s~%" opponent)
     (if (eq? opponent #:pubeval)
       (begin
         (load "lib/pubeval/pubeval.scm")
@@ -172,7 +180,7 @@
                      (gpu-init-thread i)
                      (cond
                       (measure
-                       (run-tdgammon-measure measure
+                       (run-tdgammon-measure measure net
                                              (list (cons 'rl-gam rl-gam)
                                                    (cons 'rl-lam rl-lam))
                                              #:episodes episodes
@@ -184,7 +192,8 @@
                       (else
                        (run-tdgammon (net-copy net) opponent
                                      (list (cons 'rl-gam rl-gam)
-                                           (cons 'rl-lam rl-lam))
+                                           (cons 'rl-lam rl-lam)
+                                           (cons 'learn learn))
                                      #:save #t #:episodes episodes
                                      #:start-episode start-episode
                                      #:verbose verbose #:thread i

@@ -1,9 +1,9 @@
 
-(define* (run-tdgammon-measure file opts #:key episodes thread threadio measure-tests)
+(define* (run-tdgammon-measure neta netb opts #:key episodes thread threadio measure-tests)
   (let* ((has (lambda (x) (string-index measure-tests x)))
-         (net (file-load-net file))
          (play-fun (lambda (play-type)
-                     (run-tdgammon net play-type opts #:episodes (or episodes 25) #:start-episode 0 #:save #f #:thread thread #:measure #t)))
+                     (run-tdgammon neta play-type opts #:episodes (or episodes 25) #:start-episode 0 #:save #f #:thread thread #:measure #t)))
+         (play-compare (if (has #\c) (play-fun netb)))
          (play-pubeval (if (has #\p) (play-fun pubeval-best-path)))
          (play-random  (if (has #\r) (play-fun #:random)))
          (play-early   (if (has #\e) (play-fun #:early)))
@@ -12,6 +12,8 @@
          (play-safe    (if (has #\s) (play-fun #:safe)))
          (totwwin 0) (totbwin 0))
     ; sum . zip
+    (if (has #\c) (set! totwwin (+ totwwin (car play-compare))))
+    (if (has #\c) (set! totbwin (+ totbwin (cadr play-compare))))
     (if (has #\p) (set! totwwin (+ totwwin (car play-pubeval))))
     (if (has #\p) (set! totbwin (+ totbwin (cadr play-pubeval))))
     (if (has #\r) (set! totwwin (+ totwwin (car play-random))))
@@ -32,4 +34,5 @@
              (if (has #\e) (format #f ",~a,~a" (car play-early) (cadr play-early)) "")
              (if (has #\l) (format #f ",~a,~a" (car play-late) (cadr play-late)) "")
              (if (has #\b) (format #f ",~a,~a" (car play-bar) (cadr play-bar)) "")
-             (if (has #\s) (format #f ",~a,~a" (car play-safe) (cadr play-safe)) ""))))))
+             (if (has #\s) (format #f ",~a,~a" (car play-safe) (cadr play-safe)) "")
+             (if (has #\c) (format #f ",~a,~a" (car play-compare) (cadr play-compare)) ""))))))
