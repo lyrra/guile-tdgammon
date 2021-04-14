@@ -1,15 +1,16 @@
 
-(define* (run-tdgammon-measure neta netb opts #:key episodes thread threadio measure-tests)
+(define* (run-tdgammon-measure-common neta netb opts #:key episodes thread threadio measure-tests)
+  (format #t "tests to perform: ~s~%" measure-tests)
   (let* ((has (lambda (x) (string-index measure-tests x)))
          (play-fun (lambda (play-type)
                      (run-tdgammon neta play-type opts #:episodes (or episodes 25) #:start-episode 0 #:save #f #:thread thread #:measure #t)))
-         (play-compare (if (has #\c) (play-fun netb)))
-         (play-pubeval (if (has #\p) (play-fun pubeval-best-path)))
-         (play-random  (if (has #\r) (play-fun #:random)))
-         (play-early   (if (has #\e) (play-fun #:early)))
-         (play-late    (if (has #\l) (play-fun #:late)))
-         (play-bar     (if (has #\b) (play-fun #:bar)))
-         (play-safe    (if (has #\s) (play-fun #:safe)))
+         (play-compare (if (has #\c) (play-fun netb) #f))
+         (play-pubeval (if (has #\p) (play-fun pubeval-best-path) #f))
+         (play-random  (if (has #\r) (play-fun #:random) #f))
+         (play-early   (if (has #\e) (play-fun #:early) #f))
+         (play-late    (if (has #\l) (play-fun #:late) #f))
+         (play-bar     (if (has #\b) (play-fun #:bar) #f))
+         (play-safe    (if (has #\s) (play-fun #:safe) #f))
          (totwwin 0) (totbwin 0))
     ; sum . zip
     (if (has #\c) (set! totwwin (+ totwwin (car play-compare))))
@@ -26,13 +27,75 @@
     (if (has #\b) (set! totbwin (+ totbwin (cadr play-bar))))
     (if (has #\s) (set! totwwin (+ totwwin (car play-safe))))
     (if (has #\s) (set! totbwin (+ totbwin (cadr play-safe))))
+    ; return all test results
+    (list totwwin totbwin
+          play-pubeval
+          play-random
+          play-early
+          play-late
+          play-bar
+          play-safe
+          play-compare)))
 
-    (display (string-concatenate (list
-             "RESULT: " (format #f "~a,~a" totwwin totbwin)
-             (if (has #\p) (format #f ",~a,~a" (car play-pubeval) (cadr play-pubeval)) "")
-             (if (has #\r) (format #f ",~a,~a" (car play-random) (cadr play-random)) "")
-             (if (has #\e) (format #f ",~a,~a" (car play-early) (cadr play-early)) "")
-             (if (has #\l) (format #f ",~a,~a" (car play-late) (cadr play-late)) "")
-             (if (has #\b) (format #f ",~a,~a" (car play-bar) (cadr play-bar)) "")
-             (if (has #\s) (format #f ",~a,~a" (car play-safe) (cadr play-safe)) "")
-             (if (has #\c) (format #f ",~a,~a" (car play-compare) (cadr play-compare)) ""))))))
+(define (run-tdgammon-measure-strength neta opts episodes)
+  (let ((nets (string-split (get-opt opts 'nets) #\,))
+        (tests "prelbsc"))
+    (format #t "found tests to perform: ~s~%" tests)
+    (map (lambda (netb)
+           (format #t "loading netb: ~s~%" netb)
+           (let ((netb (file-load-net netb)))
+             (match (run-tdgammon-measure-common neta netb opts
+                                                 #:measure-tests tests
+                                                 #:episodes episodes)
+               ((totwwin totbwin
+                         pubeval
+                         random
+                         early
+                         late
+                         bar
+                         safe
+                         compare)
+                (format #t "result: ~a/~a ~s~%"
+                        totwwin totbwin
+                        (list pubeval
+                              random
+                              early
+                              late
+                              bar
+                              safe
+                              compare))
+                ))))
+         nets)))
+
+(define* (run-tdgammon-measure neta netb opts #:key episodes thread threadio measure-tests)
+  (cond
+    ((get-opt opts 'measure-strength)
+     (run-tdgammon-measure-strength neta
+                                    (cons (cons 'measure-tests measure-tests)
+                                          opts)
+                                    episodes))
+    (else
+     (match (run-tdgammon-measure-common neta netb opts
+                                         #:episodes episodes
+                                         #:thread thread
+                                         #:threadio threadio
+                                         #:measure-tests measure-tests)
+       ((totwwin totbwin
+         pubeval
+         random
+         early
+         late
+         bar
+         safe
+         compare)
+        (let ((has (lambda (x) (string-index measure-tests x))))
+          (display (string-concatenate (list
+                    "RESULT: " (format #f "~a,~a" totwwin totbwin)
+                    (if (has #\p) (format #f ",~a,~a" (car pubeval) (cadr pubeval)) "")
+                    (if (has #\r) (format #f ",~a,~a" (car random)  (cadr random)) "")
+                    (if (has #\e) (format #f ",~a,~a" (car early)   (cadr early)) "")
+                    (if (has #\l) (format #f ",~a,~a" (car late)    (cadr late)) "")
+                    (if (has #\b) (format #f ",~a,~a" (car bar)     (cadr bar)) "")
+                    (if (has #\s) (format #f ",~a,~a" (car safe)    (cadr safe)) "")
+                    (if (has #\c) (format #f ",~a,~a" (car compare) (cadr compare)) ""))))
+          (newline)))))))

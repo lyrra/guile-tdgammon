@@ -96,9 +96,11 @@
   (sigmoid-init)
   (gpu-init)
   (let* ((net #f)
+         (nets #f)
          (opponent #:self) ; default to self-play
          (measure #f)
          (measure-tests "prelbs")
+         (measure-strength #f)
          (episodes #f)
          (learn #t)
          (start-episode 0)
@@ -129,10 +131,14 @@
         (if (not net)
           (set! net (file-load-net (substring (car args) 6)))
           (set! opponent (file-load-net (substring (car args) 6)))))
+      (if (string-contains (car args) "--nets=")
+        (set! nets (substring (car args) 7)))
       (if (string-contains (car args) "--measure=")
           (set! measure (file-load-net (substring (car args) 10))))
       (if (string-contains (car args) "--measure-tests=")
           (set! measure-tests (substring (car args) 16)))
+      (if (string=? (car args) "--measure-strength")
+          (set! measure-strength #t))
       (if (string-contains (car args) "--episodes=")
           (set! episodes (string->number (substring (car args) 11))))
       (if (string-contains (car args) "--start-episode=")
@@ -182,7 +188,9 @@
                       (measure
                        (run-tdgammon-measure measure net
                                              (list (cons 'rl-gam rl-gam)
-                                                   (cons 'rl-lam rl-lam))
+                                                   (cons 'rl-lam rl-lam)
+                                                   (cons 'measure-strength measure-strength)
+                                                   (cons 'nets nets))
                                              #:episodes episodes
                                              #:measure-tests measure-tests
                                              #:thread i
