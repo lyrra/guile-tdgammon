@@ -1,9 +1,11 @@
-
-(define* (run-tdgammon-measure-common neta netb opts #:key episodes thread threadio measure-tests)
-  (format #t "tests to perform: ~s~%" measure-tests)
-  (let* ((has (lambda (x) (string-index measure-tests x)))
+(define (run-tdgammon-measure-common neta netb conf)
+  (set! conf (set-conf-default conf 'episodes 25))
+  (set! conf (assq-set! conf 'save #f))
+  (set! conf (assq-set! conf 'measure #t))
+  (let* ((measure-tests (get-conf conf 'measure-tests))
+         (has (lambda (x) (string-index measure-tests x)))
          (play-fun (lambda (play-type)
-                     (run-tdgammon neta play-type opts #:episodes (or episodes 25) #:start-episode 0 #:save #f #:thread thread #:measure #t)))
+                     (run-tdgammon neta play-type conf)))
          (play-compare (if (has #\c) (play-fun netb) #f))
          (play-pubeval (if (has #\p) (play-fun pubeval-best-path) #f))
          (play-random  (if (has #\r) (play-fun #:random) #f))
@@ -37,16 +39,16 @@
           play-safe
           play-compare)))
 
-(define (run-tdgammon-measure-strength neta opts episodes)
-  (let ((nets (string-split (get-opt opts 'nets) #\,))
+(define (run-tdgammon-measure-strength neta conf)
+  (let ((nets (string-split (get-conf conf 'nets) #\,))
         (tests "prelbsc"))
     (format #t "found tests to perform: ~s~%" tests)
     (map (lambda (netb)
            (format #t "loading netb: ~s~%" netb)
            (let ((netb (file-load-net netb)))
-             (match (run-tdgammon-measure-common neta netb opts
-                                                 #:measure-tests tests
-                                                 #:episodes episodes)
+             (match (run-tdgammon-measure-common neta netb
+                                                 (assq-set! conf
+                                                  'measure-tests tests))
                ((totwwin totbwin
                          pubeval
                          random
@@ -67,19 +69,12 @@
                 ))))
          nets)))
 
-(define* (run-tdgammon-measure neta netb opts #:key episodes thread threadio measure-tests)
+(define (run-tdgammon-measure neta netb conf)
   (cond
-    ((get-opt opts 'measure-strength)
-     (run-tdgammon-measure-strength neta
-                                    (cons (cons 'measure-tests measure-tests)
-                                          opts)
-                                    episodes))
+    ((get-conf conf 'measure-strength)
+     (run-tdgammon-measure-strength neta conf))
     (else
-     (match (run-tdgammon-measure-common neta netb opts
-                                         #:episodes episodes
-                                         #:thread thread
-                                         #:threadio threadio
-                                         #:measure-tests measure-tests)
+     (match (run-tdgammon-measure-common neta netb conf)
        ((totwwin totbwin
          pubeval
          random
@@ -88,7 +83,7 @@
          bar
          safe
          compare)
-        (let ((has (lambda (x) (string-index measure-tests x))))
+        (let ((has (lambda (x) (string-index (get-conf conf 'measure-tests) x))))
           (display (string-concatenate (list
                     "RESULT: " (format #f "~a,~a" totwwin totbwin)
                     (if (has #\p) (format #f ",~a,~a" (car pubeval) (cadr pubeval)) "")

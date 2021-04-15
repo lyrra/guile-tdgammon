@@ -133,21 +133,27 @@
      (else
       (style-take-action bg dices net)))))
 
-(define* (run-tdgammon net oppo opts #:key episodes start-episode save verbose thread threadio
-                       measure)
+(define (run-tdgammon net oppo conf)
   ; initialize theta, given by parameters net
-  (format #t "Tr:~s net: ~s~%" thread net)
-  (let* ((bg (setup-bg))
+  (let* ((episodes (get-conf conf 'episodes))
+         (start-episode (or (get-conf conf 'start-episode) 0))
+         (save (get-conf conf 'save))
+         (verbose (get-conf conf 'verbose))
+         (thread (get-conf conf 'thread))
+         (threadio (get-conf conf 'threadio))
+         (measure (get-conf conf 'measure))
+        (bg (setup-bg))
         (dices (roll-dices))
         ; eligibility-traces
-        (rlw (if (and (get-opt opts 'learn) (not measure)) (new-rl opts net) #f))
-        (rlb (if (and (get-opt opts 'learn) (not measure) (eq? oppo #:self)) (new-rl opts net) #f))
+        (rlw (if (and (get-conf conf 'learn) (not measure)) (new-rl conf net) #f))
+        (rlb (if (and (get-conf conf 'learn) (not measure) (eq? oppo #:self)) (new-rl conf net) #f))
         (agentw (new-agent net rlw))
         (agentb (new-agent (if (eq? oppo #:self) net oppo) rlb))
         (wwin 0) (bwin 0)
         (terminal-state #f)
         (start-time (current-time))
         (totsteps 0))
+    (format #t "Tr:~s net: ~s~%" thread net)
     ; loop for each episode
     (do ((episode 0 (1+ episode)))
         ((and episodes (>= episode episodes)))

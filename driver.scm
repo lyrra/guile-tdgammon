@@ -187,27 +187,31 @@
                      (cond
                       (measure
                        (run-tdgammon-measure measure net
-                                             (list (cons 'rl-gam rl-gam)
-                                                   (cons 'rl-lam rl-lam)
-                                                   (cons 'measure-strength measure-strength)
-                                                   (cons 'nets nets))
-                                             #:episodes episodes
-                                             #:measure-tests measure-tests
-                                             #:thread i
-                                             #:threadio (if threadio
+                                             (make-conf
+                                              `(rl-gam ,rl-gam
+                                                rl-lam ,rl-lam
+                                                measure-strength ,measure-strength
+                                                nets ,nets
+                                                episodes ,episodes
+                                                measure-tests ,measure-tests
+                                                thread ,i
+                                                threadio ,(if threadio
                                                             (array-ref threadio i)
-                                                            #f)))
+                                                            #f)))))
                       (else
                        (run-tdgammon (net-copy net) opponent
-                                     (list (cons 'rl-gam rl-gam)
-                                           (cons 'rl-lam rl-lam)
-                                           (cons 'learn learn))
-                                     #:save #t #:episodes episodes
-                                     #:start-episode start-episode
-                                     #:verbose verbose #:thread i
-                                     #:threadio (if threadio
+                                     (make-conf
+                                      `(rl-gam ,rl-gam
+                                        rl-lam ,rl-lam
+                                        learn  ,learn
+                                        save #t
+                                        episodes ,episodes
+                                        start-episode ,start-episode
+                                        verbose ,verbose
+                                        thread ,i
+                                        threadio ,(if threadio
                                                     (array-ref threadio i)
-                                                    #f)))))))
+                                                    #f)))))))))
         (if (= threads 1)
             ; only do profiling if one threads is used
             (if profiling
