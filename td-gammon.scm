@@ -10,58 +10,79 @@
                      lst (reverse lst)))))
     (rl-policy-greedy-action net bg paths)))
 
+(define (human-select-action bg dices paths)
+  (let ((action 0)
+        (filter #f))
+    (while #t
+      (let* ((i 0) ; print moves, maybe using a filter
+             (str (format #f "~a" filter))
+             (ptsf (if (string=? "m" (substring str 0 1))
+                       (1- (string->number (substring str 1)))
+                       #f)))
+        (loop-for path in paths do
+          (let* ((safe (bg-safe? path #f))
+                 (bar  (> (bg-w-bar path) 0))
+                 (rem  (> (bg-b-rem path) (bg-b-rem bg)))
+                 (prip (lambda ()
+                         (format #t "~a ~a~a~a: [w b:~s r:~s] [b b:~s r:~s] {" i
+                                 (if safe "s" " ")
+                                 (if bar  "b" " ")
+                                 (if rem  "r" " ")
+                                 (bg-w-bar path)
+                                 (bg-w-rem path)
+                                 (bg-b-bar path)
+                                 (bg-b-rem path))
+                         (do ((p 0 (1+ p)))
+                             ((>= p 24))
+                           (let ((pts (array-ref (bg-w-pts path) p)))
+                             (if (= 0 pts)
+                               (format #t ".")
+                               (format #t "~a" pts))))
+                         (format #t "} {")
+                         (do ((p 0 (1+ p)))
+                             ((>= p 24))
+                           (let ((pts (array-ref (bg-b-pts path) p)))
+                             (if (= 0 pts)
+                               (format #t ".")
+                               (format #t "~a" pts))))
+                         (format #t "} ~a~%" i))))
+          (cond
+           ((and ptsf (> (array-ref (bg-b-pts path) ptsf) 0)) (prip))
+           ((and (eq? 'a filter) (or bar safe)) (prip))
+           ((and (eq? 'b filter) bar) (prip))
+           ((and (eq? 's filter) safe) (prip))
+           ((not filter) (prip)))
+          (set! i (1+ i)))))
+      (let ((i 0)  ; count types of moves
+            (b 0) ; put white points on bar
+            (s 0) ; safe move for black
+            (c 0)) ; combo
+        (loop-for path in paths do
+          (let ((bar (> (bg-w-bar path) 0))
+                (safe (bg-safe? path #f)))
+            (if (and bar safe) (set! c (1+ c)))
+            (if bar (set! b (1+ b)))
+            (if safe (set! s (1+ s)))))
+        (format #t "~%bar: ~a, safe: ~a combo: ~a~%" b s c))
+      (bg-print-board bg)
+      (format #t "(~s) dices: ~a Please select path> " filter dices)
+      (set! filter #f)
+      (let ((n (read)))
+        (cond
+         ((number? n)
+          (set! action n)
+          (break))
+         ((eq? 'q n) (set! filter #f))
+         (else
+          (set! filter n)))))
+    (list-ref paths action)))
+
 (define (human-take-action bg dices)
-  (let ((paths (bg-find-all-states bg dices))
-        (i 0))
+  (let ((paths (bg-find-all-states bg dices)))
     (cond
       ((eq? paths '()) #f) ; no paths to take
       (else
-    (loop-for path in paths do
-      (format #t "~a path: ~s~%" i path)
-      (set! i (1+ i)))
-    ; ---- print board ---------
-    (format #t "   ")
-    (do ((p 0 (1+ p)))
-        ((>= p 24))
-      (format #t "~2d  " p))
-    (format #t "~%W: ")
-    ; print white
-    (do ((p 0 (1+ p)))
-        ((>= p 24))
-      (let ((pcs (array-ref (bg-w-pts bg) p)))
-        (cond
-         ((> pcs 9) (format #t "+   "))
-         ((= pcs 0) (format #t "    "))
-         (else (format #t "~2d  " pcs)))))
-    (format #t "  bar: ~d rem: ~d~%" (bg-w-bar bg) (bg-w-rem bg))
-    ; print black
-    (format #t "B: ")
-    (do ((p 0 (1+ p)))
-        ((>= p 24))
-      (let ((pcs (array-ref (bg-b-pts bg) p)))
-        (cond
-         ((> pcs 9) (format #t "+   "))
-         ((= pcs 0) (format #t "    "))
-         (else (format #t "~2d  " pcs)))))
-    (format #t "  bar: ~d rem: ~d~%" (bg-b-bar bg) (bg-b-rem bg))
-;   (format #t "~%Filter: ")
-;   ; ---- print paths summary---------
-;   ; print white
-;   (do ((p 0 (1+ p)))
-;       ((>= p 24))
-;     (let ((pcs 0))
-;       (loop-for path in paths do
-;         (let ((x (array-ref (bg-w-pts path) p)))
-;           (if (and (> x 0)
-;                    (< pcs 9))
-;             (set! pcs (+ pcs 1)))))
-;       (if (> pcs 0)
-;           (format #t "~2d  " pcs)
-;           (format #t "    "))))
-    ; --------------------------
-    (format #t "~% dices: ~a Please select path> " dices)
-    (let ((n (read)))
-      (list-ref paths n))))))
+       (human-select-action bg dices paths)))))
 
 (define (style-take-action bg dices style)
   (let ((paths (bg-find-all-states bg dices))
