@@ -5,7 +5,7 @@
   (let* ((measure-tests (get-conf conf 'measure-tests))
          (has (lambda (x) (string-index measure-tests x)))
          (play-fun (lambda (play-type)
-                     (run-tdgammon neta play-type conf)))
+                     (run-episodic-selfplay tdgammon-run-episode neta play-type conf)))
          (play-compare (if (has #\c) (play-fun netb) #f))
          (play-pubeval (if (has #\p) (play-fun pubeval-best-path) #f))
          (play-random  (if (has #\r) (play-fun #:random) #f))

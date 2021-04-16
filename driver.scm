@@ -199,7 +199,8 @@
                                                             (array-ref threadio i)
                                                             #f)))))
                       (else
-                       (run-tdgammon (net-copy net) opponent
+                       (run-episodic-selfplay tdgammon-run-episode
+                                              (net-copy net) opponent
                                      (make-conf
                                       `(rl-gam ,rl-gam
                                         rl-lam ,rl-lam
@@ -222,3 +223,50 @@
         (begin
           (sleep 1)
           (handle-threads file-prefix threadio start-episode 100)))))
+
+(define (run-episodic-selfplay game net oppo conf)
+  ; initialize theta, given by parameters net
+  (let* ((episodes (get-conf conf 'episodes))
+         (start-episode (or (get-conf conf 'start-episode) 0))
+         (save (get-conf conf 'save))
+         (verbose (get-conf conf 'verbose))
+         (thread (get-conf conf 'thread))
+         (threadio (get-conf conf 'threadio))
+         (measure (get-conf conf 'measure))
+        ; eligibility-traces
+        (rlw (if (and (get-conf conf 'learn) (not measure)) (new-rl conf net) #f))
+        (rlb (if (and (get-conf conf 'learn) (not measure) (eq? oppo #:self)) (new-rl conf net) #f))
+        (agentw (new-agent net rlw))
+        (agentb (new-agent (if (eq? oppo #:self) net oppo) rlb))
+        (wwin 0) (bwin 0)
+        (start-time (current-time))
+        (totsteps 0))
+    (format #t "Tr:~s net: ~s~%" thread net)
+    ; loop for each episode
+    (do ((episode 0 (1+ episode)))
+        ((and episodes (>= episode episodes)))
+      ; merge white and black networks
+      ; save the network now and then
+      (if (and (not threadio) save (> episode 0) (= (modulo episode 100) 0))
+          (file-write-net (format #f "~a-net-~a.net" thread
+                                  (+ (or start-episode 0) episode))
+                          (+ (or start-episode 0) episode) net))
+      ; get initial action here
+      ; Repeat for each step in episode:
+      (match (tdgammon-run-episode rlw rlb agentw agentb #:log? (not threadio))
+        ((winner steps)
+         (if winner
+             (set! wwin (1+ wwin))
+             (set! bwin (1+ bwin)))
+         (set! totsteps (+ totsteps steps))))
+      ; end of episode
+      ; if we are multithreading, report current net/stat
+      (if threadio
+          (match
+           (net-input-output threadio net wwin bwin episode totsteps start-time)
+            (#f #f) ; no network updates from master
+            ((net) ; switch to updated networks
+             (net-transfer net net)))))
+    (if threadio ; signal thread done
+        (array-set! threadio #:done 1))
+    (list wwin bwin)))

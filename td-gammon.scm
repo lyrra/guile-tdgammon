@@ -133,112 +133,67 @@
      (else
       (style-take-action bg dices net)))))
 
-(define (run-tdgammon net oppo conf)
-  ; initialize theta, given by parameters net
-  (let* ((episodes (get-conf conf 'episodes))
-         (start-episode (or (get-conf conf 'start-episode) 0))
-         (save (get-conf conf 'save))
-         (verbose (get-conf conf 'verbose))
-         (thread (get-conf conf 'thread))
-         (threadio (get-conf conf 'threadio))
-         (measure (get-conf conf 'measure))
-        (bg (setup-bg))
-        (dices (roll-dices))
-        ; eligibility-traces
-        (rlw (if (and (get-conf conf 'learn) (not measure)) (new-rl conf net) #f))
-        (rlb (if (and (get-conf conf 'learn) (not measure) (eq? oppo #:self)) (new-rl conf net) #f))
-        (agentw (new-agent net rlw))
-        (agentb (new-agent (if (eq? oppo #:self) net oppo) rlb))
-        (wwin 0) (bwin 0)
+(define* (tdgammon-run-episode rlw rlb agentw agentb #:key log?)
+  (let ((bg (setup-bg)) ; set s to initial state of episode
         (terminal-state #f)
-        (start-time (current-time))
-        (totsteps 0))
-    (format #t "Tr:~s net: ~s~%" thread net)
-    ; loop for each episode
-    (do ((episode 0 (1+ episode)))
-        ((and episodes (>= episode episodes)))
-      ; merge white and black networks
-      ; save the network now and then
-      (if (and (not threadio) save (> episode 0) (= (modulo episode 100) 0))
-          (file-write-net (format #f "~a-net-~a.net" thread
-                                  (+ (or start-episode 0) episode))
-                          (+ (or start-episode 0) episode) net))
-      ; set s to initial state of episode
-      (set! bg (setup-bg))
-      (set-bg-ply! bg #t) ; whites turn
-      (set! dices (roll-dices))
-      (set! terminal-state #f)
-      ; get initial action here
-      ; Repeat for each step in episode:
-      (do ((step 0 (1+ step)))
-          (terminal-state)
-        (let ((ply (bg-ply bg)))
-          (LLL "~a.~a.~a: [~a/~a] dices: ~s w/b-turn: ~a bar:[~a,~a] rem:[~a,~a]~%"
-                  thread episode step wwin bwin dices (bg-ply bg)
-                  (bg-w-bar bg) (bg-b-bar bg)
-                  (bg-w-rem bg) (bg-b-rem bg))
-          (if *verbose* (bg-print-board bg))
-          (if (and rlw (= step 0)) (agent-init agentw bg))
-          (if (and rlb (= step 1)) (agent-init agentb bg))
-          ; a <- pi(s)  ; set a to action given by policy for s
-          ; Take action a, observe r and next state s'
-          ;     new state, s', consists of bg2 and new dice-roll
-          ;     s =  { bg, dices }
-          ;     s' = { best-bg, new-dice-roll }
-          (match (run-turn bg (if ply agentw agentb) dices)
-            (#f ; player can't move (example is all pieces are on the bar)
-              ; since we have no moves to consider/evaluate, we just yield to the other player
-             (assert (not (state-terminal? bg)))
-             'ok)
-            (new-bg
-             (set! terminal-state (state-terminal? new-bg))
-             (if (if ply rlw rlb) ; let ML-player learn the step
-               (run-ml-learn new-bg
-                             (if ply rlw rlb)
-                             (get-reward new-bg ply)))
-             ; if in terminal-state, also learn the loser experience
-             (when (and terminal-state (if ply rlb rlw)) ; ML-player
-               (assert (state-terminal? new-bg) "loser in non-terminal")
-               ; since we are using the same network (self-play) bring back the old/half-step input
-               (array-scopy! (agent-ovxi (if ply agentb agentw)) (net-vxi net))
-               (run-ml-learn new-bg
-                             (if ply rlb rlw) ; use the previous turns player
-                             (get-reward new-bg (not ply))))
-             ; evolve state
-             (agent-end-turn (if ply agentw agentb))
-             ; s <- s'
-             (set! bg new-bg)))
-          ; check if terminal-state
-          (cond
-           ((= (bg-w-rem bg) 15)
-            (assert terminal-state)
-            (set! wwin (+ wwin 1)))
-           ((= (bg-b-rem bg) 15)
-            (assert terminal-state)
-            (set! bwin (+ bwin 1))))
-          (if terminal-state
-            (begin
-              (set! totsteps (+ totsteps step))
-            (if (not threadio)
-              (format #t "~a.~a.~a s/t:~a winner:~a [~a,~a]~%" thread episode step
-                      ;(inexact->exact (truncate (/ totsteps (- (current-time) start-time -1))))
-                      (truncate (/ totsteps (- (current-time) start-time -1)))
-                      (if (= (bg-w-rem bg) 15) "WHITE" "BLACK")
-                      wwin bwin))))
-          ;--------------------------------------
-          ; s <- s' , dices are part of state/env
-          (set! dices (roll-dices))
-          (set-bg-ply! bg (not ply))
-          ; bookkeeping
-          (bg-validate bg)))
-      ; end of episode
-      ; if we are multithreading, report current net/stat
-      (if threadio
-          (match
-           (net-input-output threadio net wwin bwin episode totsteps start-time)
-            (#f #f) ; no network updates from master
-            ((net) ; switch to updated networks
-             (net-transfer net net)))))
-    (if threadio ; signal thread done
-        (array-set! threadio #:done 1))
-    (list wwin bwin)))
+        (winner #f)
+        (dices (roll-dices))
+        (steps 0))
+    (set-bg-ply! bg #t) ; whites turn
+    (do ((step 0 (1+ step)))
+        (terminal-state)
+      (let ((ply (bg-ply bg)))
+        (LLL "~a: dices: ~s w/b-turn: ~a bar:[~a,~a] rem:[~a,~a]~%"
+              step dices (bg-ply bg)
+              (bg-w-bar bg) (bg-b-bar bg)
+              (bg-w-rem bg) (bg-b-rem bg))
+        (if *verbose* (bg-print-board bg))
+        (if (and rlw (= step 0)) (agent-init agentw bg))
+        (if (and rlb (= step 1)) (agent-init agentb bg))
+        ; a <- pi(s)  ; set a to action given by policy for s
+        ; Take action a, observe r and next state s'
+        ;     new state, s', consists of bg2 and new dice-roll
+        ;     s =  { bg, dices }
+        ;     s' = { best-bg, new-dice-roll }
+        (match (run-turn bg (if ply agentw agentb) dices)
+          (#f ; player can't move (example is all pieces are on the bar)
+            ; since we have no moves to consider/evaluate, we just yield to the other player
+           (assert (not (state-terminal? bg)))
+           'ok)
+          (new-bg
+           (set! terminal-state (state-terminal? new-bg))
+           (if (if ply rlw rlb) ; let ML-player learn the step
+             (run-ml-learn new-bg
+                           (if ply rlw rlb)
+                           (get-reward new-bg ply)))
+           ; if in terminal-state, also learn the loser experience
+           (when (and terminal-state (if ply rlb rlw)) ; ML-player
+             (assert (state-terminal? new-bg) "loser in non-terminal")
+             ; since we are using the same network (self-play) bring back the old/half-step input
+             (array-scopy! (agent-ovxi (if ply agentb agentw)) (net-vxi (agent-net agentw)))
+             (run-ml-learn new-bg
+                           (if ply rlb rlw) ; use the previous turns player
+                           (get-reward new-bg (not ply))))
+           ; evolve state
+           (agent-end-turn (if ply agentw agentb))
+           ; s <- s'
+           (set! bg new-bg)))
+        ; check if terminal-state
+        (cond
+         ((= (bg-w-rem bg) 15)
+          (assert terminal-state)
+          (set! winner #t))
+         ((= (bg-b-rem bg) 15)
+          (assert terminal-state)
+          (set! winner #f)))
+        (when terminal-state
+          (set! steps step)
+          (if (or log? *verbose*)
+            (format #t "winner:~a~%" (if (= (bg-w-rem bg) 15) "WHITE" "BLACK"))))
+        ;--------------------------------------
+        ; s <- s' , dices are part of state/env
+        (set! dices (roll-dices))
+        (set-bg-ply! bg (not ply))
+        ; bookkeeping
+        (bg-validate bg)))
+    (list winner steps)))
