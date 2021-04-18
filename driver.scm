@@ -99,73 +99,61 @@
          (nets #f)
          (opponent #:self) ; default to self-play
          (measure #f)
-         (measure-tests "prelbs")
-         (measure-strength #f)
-         (episodes #f)
-         (learn #t)
-         (start-episode 0)
-         (verbose #f)
-         ; ---- debug stuff ----
-         (threads 1)
+         (threads #f)
          (threadio #f)
-         (profiling #f)
-         ; ML stuff
-         (numhid 40)  ; number of hidden neurons
-         (rl-gam 0.9) ; td-gamma
-         (rl-lam 0.7) ; eligibility-trace decay
-         (file-prefix "v0")
-         (seed (current-time)))
-    ; FIX: dont do any operations (driven by command-line) here,
-    ;      instead just build up an configuration which is passed on
-    (do ((args (command-line) (cdr args)))
-        ((eq? args '()))
-      (format #t "  arg: ~s~%" (car args))
-      (if (string-contains (car args) "--prefix=")
-          (set! file-prefix (substring (car args) 9)))
-      (when (string-contains (car args) "--opponent=")
-        (set! opponent (substring (car args) 11))
-        (if (string-contains opponent ".net")
-            (set! opponent (file-load-net opponent))
-            (set! opponent (symbol->keyword (string->symbol opponent)))))
-      (when (string-contains (car args) "--net=")
-        (if (not net)
-          (set! net (file-load-net (substring (car args) 6)))
-          (set! opponent (file-load-net (substring (car args) 6)))))
-      (if (string-contains (car args) "--nets=")
-        (set! nets (substring (car args) 7)))
-      (if (string-contains (car args) "--measure=")
-          (set! measure (file-load-net (substring (car args) 10))))
-      (if (string-contains (car args) "--measure-tests=")
-          (set! measure-tests (substring (car args) 16)))
-      (if (string=? (car args) "--measure-strength")
-          (set! measure-strength #t))
-      (if (string-contains (car args) "--episodes=")
-          (set! episodes (string->number (substring (car args) 11))))
-      (if (string-contains (car args) "--start-episode=")
-          (set! start-episode (string->number (substring (car args) 16))))
-      (if (string-contains (car args) "--verbose")
-          (set! *verbose* #t))
-      (if (string-contains (car args) "--profiling")
-          (set! profiling #t))
-      (if (string-contains (car args) "--threads=")
-          (set! threads (string->number (substring (car args) 10))))
-      ; RL parameters
-      (if (string-contains (car args) "--rl=no") ; disable learning
-          (set! learn #f))
-      (if (string-contains (car args) "--rl-lam=") ; td-gamma
-          (set! rl-lam (string->number (substring (car args) 9))))
-      (if (string-contains (car args) "--rl-gam=") ; eligibility-trace
-          (set! rl-gam (string->number (substring (car args) 9))))
-      ; ML parameters
-      (if (string-contains (car args) "--alpha=")
-          (set! %alpha (string->number (substring (car args) 8))))
-      (if (string-contains (car args) "--numhid=")
-          (set! numhid (string->number (substring (car args) 9))))
-      ; environment
-      (if (string-contains (car args) "--seed=")
-          (set! seed (string->number (substring (car args) 7)))))
-    (init-rand seed)
-    (if (not net) (set! net (make-net numhid)))
+         (conf (make-conf
+                `(verbose #f
+                  profiling #f
+                  threads 1
+                  measure-tests "prelbs"
+                  ; RL parameters
+                  learn #t
+                  rl-gam 0.9 ; td-gamma
+                  rl-lam 0.7 ; eligibility-trace decay
+                  ; ML parameters
+                  alpha 0.1
+                  numhid 40  ; number of hidden neurons
+                  ; environment
+                  seed ,(current-time)
+                  prefix "v0"
+                  start-episode 0))))
+    (set! conf (merge-conf
+                conf
+                (command-line-parse
+                  '((prefix string)
+                    (net string)
+                    (nets string)
+                    (opponent string)
+                    (measure string)
+                    (measure-tests string)
+                    (measure-strength boolean)
+                    (episodes number)
+                    (start-episode number)
+                    (verbose boolean)
+                    (profiling boolean)
+                    (threads number)
+                    (rl boolean)
+                    (rl-lam number)
+                    (rl-gam number)
+                    (alpha number)
+                    (numhid number)
+                    (seed number)))))
+    (set! net (get-conf conf 'net))
+    (if net
+      (set! net (file-load-net net)))
+    (set! opponent (get-conf conf 'opponent opponent))
+    (if (string? opponent)
+      (if (string-contains opponent ".net")
+          (set! opponent (file-load-net opponent))
+          (set! opponent (symbol->keyword (string->symbol opponent)))))
+    (set! nets (get-conf conf 'nets))
+    (set! measure (get-conf conf 'measure))
+    (if measure
+      (set! measure (file-load-net measure)))
+    (set! threads   (get-conf conf 'threads))
+    ;
+    (init-rand (get-conf conf 'seed))
+    (if (not net) (set! net (make-net (get-conf conf 'numhid))))
     (if (eq? opponent #:pubeval)
       (begin
         (load "lib/pubeval/pubeval.scm")
@@ -178,6 +166,7 @@
                                    (array-map! slot (lambda (x) 0) slot)
                                    slot))
                       threadio)))
+    (format #t "config: ~s~%" conf)
     (do ((i 0 (+ i 1)))
         ((>= i threads))
       (usleep 100000)
@@ -187,42 +176,38 @@
                      (cond
                       (measure
                        (run-tdgammon-measure measure net
-                                             (make-conf
-                                              `(rl-gam ,rl-gam
-                                                rl-lam ,rl-lam
-                                                measure-strength ,measure-strength
-                                                nets ,nets
-                                                episodes ,episodes
-                                                measure-tests ,measure-tests
-                                                thread ,i
-                                                threadio ,(if threadio
-                                                            (array-ref threadio i)
-                                                            #f)))))
+                                             (merge-conf
+                                              conf
+                                              (make-conf
+                                               `(nets ,nets
+                                                 thread ,i
+                                                 threadio ,(if threadio
+                                                             (array-ref threadio i)
+                                                             #f))))))
                       (else
                        (run-episodic-selfplay tdgammon-run-episode
                                               (net-copy net) opponent
-                                     (make-conf
-                                      `(rl-gam ,rl-gam
-                                        rl-lam ,rl-lam
-                                        learn  ,learn
-                                        save #t
-                                        episodes ,episodes
-                                        start-episode ,start-episode
-                                        verbose ,verbose
-                                        thread ,i
-                                        threadio ,(if threadio
-                                                    (array-ref threadio i)
-                                                    #f)))))))))
+                                     (merge-conf
+                                      conf
+                                      (make-conf
+                                       `(save #t
+                                         thread ,i
+                                         threadio ,(if threadio
+                                                     (array-ref threadio i)
+                                                     #f))))))))))
         (if (= threads 1)
             ; only do profiling if one threads is used
-            (if profiling
+            (if (get-conf conf 'profiling)
                 (statprof thunk)
                 (thunk))
             (call-with-new-thread thunk))))
     (if (> threads 1)
         (begin
           (sleep 1)
-          (handle-threads file-prefix threadio start-episode 100)))))
+          (handle-threads (get-conf conf 'prefix)
+                          threadio
+                          (get-conf conf 'start-episode)
+                          100)))))
 
 (define (run-episodic-selfplay game net oppo conf)
   ; initialize theta, given by parameters net
