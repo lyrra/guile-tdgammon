@@ -238,14 +238,30 @@
                                      ((>= i 24))
                                    (if (> (array-ref arr i) 0)
                                        (set! v #f)))
-                                 v))
+                                 v)
+                               ; ensure move is exact-outside, OR, no higher pieces exist
+                               (or (= newpos -1) ; exactly outside
+                                   (let ((good #t))
+                                     (do ((i (1+ p) (1+ i)))
+                                         ((>= i 24))
+                                       (if (> (array-ref arr i) 0)
+                                           (set! good #t)))
+                                     good)))
                           (and (> newpos 23) ; blacks-piece has moved outside of board
                                (let ((v #t)) ; ensure no points are outside home
                                  (do ((i 0 (1+ i)))
                                      ((>= i 18))
                                    (if (> (array-ref arr i) 0)
                                        (set! v #f)))
-                                 v))
+                                 v)
+                               ; ensure move is exact-outside, OR, no higher pieces exist
+                               (or (= newpos 24) ; exactly outside
+                                   (let ((good #t))
+                                     (do ((i 0 (1+ i)))
+                                         ((>= i p))
+                                       (if (> (array-ref arr i) 0)
+                                           (set! good #f)))
+                                     good)))
                           ; if piece lands on board, it mustn't be occupied
                           (and (>= newpos 0) (< newpos 24)
                                (< (array-ref brr newpos) 2))) ; max one opponent piece
