@@ -153,7 +153,7 @@
     (set! threads   (get-conf conf 'threads))
     ;
     (init-rand (get-conf conf 'seed))
-    (if (not net) (set! net (make-net (get-conf conf 'numhid))))
+    (if (not net) (set! net (make-net #:in 198 #:out 2 #:hid (get-conf conf 'numhid))))
     (if (eq? opponent #:pubeval)
       (begin
         (load "lib/pubeval/pubeval.scm")

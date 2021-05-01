@@ -126,7 +126,7 @@
 (define (run-turn bg agent dices)
   (let ((net (agent-net agent)))
     (cond
-     ((array? net) ; player is controlled by artificial type of neural-network
+     ((netr? net) ; player is controlled by artificial type of neural-network
       (policy-take-action bg net dices))
      ((eq? net #:human) ; human type of neural-network controls player
       (human-take-action bg dices))
