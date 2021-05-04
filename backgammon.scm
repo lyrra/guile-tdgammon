@@ -220,9 +220,7 @@
                     (set-bg-w-bar! nbg (1+ (bg-w-bar nbg))))))
             (bg-fold-states nbg (cdr dices))))
          (else ; position is occupied
-          (if (eq? '() (cdr dices))
-            '() ; no more dices, don't include this state
-            (bg-fold-states bg (cdr dices)))))))
+          '()))))
      (else
       (let ((paths '()))
         (do ((p 0 (1+ p)))
