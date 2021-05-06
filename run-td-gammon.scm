@@ -5,6 +5,7 @@
 (import (ffi cblas))
 (load "common-lisp.scm")
 (load "common.scm")
+(load "bio.scm")
 (load "mat.scm")
 (load "sigmoid.scm")
 (load "gpu.scm")
