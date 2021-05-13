@@ -113,6 +113,7 @@
                   ; ML parameters
                   alpha 0.1
                   numhid 40  ; number of hidden neurons
+                  numout  2
                   ; environment
                   seed ,(current-time)
                   prefix "v0"
@@ -137,6 +138,7 @@
                     (rl-gam number)
                     (alpha number)
                     (numhid number)
+                    (numout number)
                     (seed number)))))
     (set! net (get-conf conf 'net))
     (if net
@@ -153,7 +155,9 @@
     (set! threads   (get-conf conf 'threads))
     ;
     (init-rand (get-conf conf 'seed))
-    (if (not net) (set! net (make-net #:in 198 #:out 2 #:hid (get-conf conf 'numhid))))
+    (if (not net) (set! net (make-net #:in 198
+                                      #:out (get-conf conf 'numout)
+                                      #:hid (get-conf conf 'numhid))))
     (if (eq? opponent #:pubeval)
       (begin
         (load "lib/pubeval/pubeval.scm")
