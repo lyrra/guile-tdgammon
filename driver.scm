@@ -114,6 +114,7 @@
                   alpha 0.1
                   numhid 40  ; number of hidden neurons
                   numout  2
+                  randr #f ; randomize weights periodically
                   ; environment
                   seed ,(current-time)
                   prefix "v0"
@@ -139,6 +140,7 @@
                     (alpha number)
                     (numhid number)
                     (numout number)
+                    (randr number)
                     (seed number)))))
     (set! net (get-conf conf 'net))
     (if net
@@ -240,6 +242,14 @@
           (file-write-net (format #f "~a-net-~a.net" thread
                                   (+ (or start-episode 0) episode))
                           (+ (or start-episode 0) episode) net))
+      ; randomize network
+      (let* ((randr (get-conf conf 'randr))
+             (alpha (get-conf conf 'alpha))
+             (f (lambda (layer alpha x)
+                  (+ x (* alpha randr (- (random-uniform) .5))))))
+        (when randr
+          (if rlw (net-weights-scale (rl-net rlw) f alpha))
+          (if rlb (net-weights-scale (rl-net rlb) f alpha))))
       ; get initial action here
       ; Repeat for each step in episode:
       (match (tdgammon-run-episode rlw rlb agentw agentb #:log? (not threadio))
