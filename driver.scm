@@ -1,4 +1,21 @@
 
+(define (file-load-latest-net dir)
+  (let ((ds (opendir dir))
+        (name #f)
+        (episode #f))
+    (when (directory-stream? ds)
+      (do ((ent (readdir ds) (readdir ds)))
+          ((eof-object? ent))
+        (if (string-contains ent "net-")
+          (let* ((as (substring ent (+ 4 (string-contains ent "net-"))))
+                 (e (string->number (substring as 0 (string-contains as ".net")))))
+            (when (or (not episode)
+                      (> e episode))
+              (set! episode e)
+              (set! name ent)))))
+      (closedir ds))
+    (list name episode)))
+
 (define (net-input-output threadio net wwin bwin episodes totsteps start-time)
   ; send current network to master
   (array-set! threadio
@@ -118,11 +135,13 @@
                   ; environment
                   seed ,(current-time)
                   prefix "v0"
+                  dir #f
                   start-episode 0))))
     (set! conf (merge-conf
                 conf
                 (command-line-parse
                   '((prefix string)
+                    (dir string)
                     (net string)
                     (nets string)
                     (opponent string)
@@ -143,8 +162,17 @@
                     (randr number)
                     (seed number)))))
     (set! net (get-conf conf 'net))
-    (if net
-      (set! net (file-load-net net)))
+    (let ((dir (get-conf conf 'dir)))
+      (cond
+       ((and (not net) dir)
+        (match (file-load-latest-net dir)
+          ((net2 start-episode2)
+           (set! net (file-load-net (format #nil "~a/~a" dir net2)))
+           (set! conf (assq-set! conf 'start-episode start-episode2)))
+          (x
+           (error "wrong answer from file-load-latest-net:" x))))
+       (net
+        (set! net (file-load-net net)))))
     (set! opponent (get-conf conf 'opponent opponent))
     (if (string? opponent)
       (if (string-contains opponent ".net")
