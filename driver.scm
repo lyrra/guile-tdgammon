@@ -128,6 +128,7 @@
                   rl-gam 0.9 ; td-gamma
                   rl-lam 0.7 ; eligibility-trace decay
                   ; ML parameters
+                  waccu #f ; accumulate weights changes towards end-of-episode
                   alpha 0.1
                   numhid 40  ; number of hidden neurons
                   numout  2
@@ -159,6 +160,7 @@
                     (alpha number)
                     (numhid number)
                     (numout number)
+                    (waccu boolean)
                     (randr number)
                     (seed number)))))
     (set! net (get-conf conf 'net))
