@@ -133,6 +133,7 @@
                   numhid 40  ; number of hidden neurons
                   numout  2
                   randr #f ; randomize weights periodically
+                  rande #f ; error-scaled weights randomization
                   ; environment
                   seed ,(current-time)
                   prefix "v0"
@@ -162,6 +163,7 @@
                     (numout number)
                     (waccu boolean)
                     (randr number)
+                    (rande boolean)
                     (seed number)))))
     (set! net (get-conf conf 'net))
     (let ((dir (get-conf conf 'dir)))
@@ -262,6 +264,12 @@
         (wwin 0) (bwin 0)
         (start-time (current-time))
         (totsteps 0))
+
+    ; needed because we do at first-step, randomization before weights-accumulate
+    (when (get-conf conf 'waccu)
+      (if rlw (net-wdelta-clear (rl-net rlw)))
+      (if rlb (net-wdelta-clear (rl-net rlb))))
+
     (format #t "Tr:~s net: ~s~%" thread net)
     ; loop for each episode
     (do ((episode 0 (1+ episode)))
@@ -273,13 +281,20 @@
                                   (+ (or start-episode 0) episode))
                           (+ (or start-episode 0) episode) net))
       ; randomize network
-      (let* ((randr (get-conf conf 'randr))
-             (alpha (get-conf conf 'alpha))
-             (f (lambda (layer alpha x)
-                  (+ x (* alpha randr (- (random-uniform) .5))))))
+      (let ((randr (get-conf conf 'randr))
+            (alpha (get-conf conf 'alpha)))
         (when randr
-          (if rlw (net-weights-scale (rl-net rlw) f alpha))
-          (if rlb (net-weights-scale (rl-net rlb) f alpha))))
+          (cond
+           ((get-conf conf 'rande)
+            (let ((f (lambda (layer alpha w e)
+                       (+ w (* alpha e randr (- (random-uniform) .5))))))
+              (if rlw (net-weights-scale (rl-net rlw) f alpha))
+              (if rlb (net-weights-scale (rl-net rlb) f alpha))))
+           (else
+            (let ((f (lambda (layer alpha w)
+                       (+ w (* alpha randr (- (random-uniform) .5))))))
+              (if rlw (net-weights-scale (rl-net rlw) f alpha))
+              (if rlb (net-weights-scale (rl-net rlb) f alpha)))))))
       ; get initial action here
       ; Repeat for each step in episode:
       (match (tdgammon-run-episode rlw rlb agentw agentb #:log? (not threadio))
