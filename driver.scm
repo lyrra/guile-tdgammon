@@ -191,7 +191,8 @@
     (init-rand (get-conf conf 'seed))
     (if (not net) (set! net (make-net #:in 198
                                       #:out (get-conf conf 'numout)
-                                      #:hid (get-conf conf 'numhid))))
+                                      #:hid (get-conf conf 'numhid)
+                                      #:wdelta (get-conf conf 'waccu))))
     (if (eq? opponent #:pubeval)
       (begin
         (load "lib/pubeval/pubeval.scm")
