@@ -172,11 +172,13 @@
         (match (file-load-latest-net dir)
           ((net2 start-episode2)
            (set! net (file-load-net (format #nil "~a/~a" dir net2)))
+           (if (get-conf conf 'waccu) (net-make-wdelta net)) ; enough to unfalse wdelta slot
            (set! conf (assq-set! conf 'start-episode start-episode2)))
           (x
            (error "wrong answer from file-load-latest-net:" x))))
        (net
-        (set! net (file-load-net net)))))
+        (set! net (file-load-net net))
+        (if (get-conf conf 'waccu) (net-make-wdelta net))))) ; enough to unfalse wdelta slot
     (set! opponent (get-conf conf 'opponent opponent))
     (if (string? opponent)
       (if (string-contains opponent ".net")
