@@ -3,12 +3,14 @@
 
 (import (srfi srfi-1) (ice-9 match) (srfi srfi-8) (srfi srfi-9))
 (import (ffi cblas))
+(import (guile-gpu gpu))
+(import (guile-gpu sigmoid))
 (load "common-lisp.scm")
 (load "common.scm")
 (load "bio.scm")
 (load "mat.scm")
-(load "sigmoid.scm")
-(load "gpu.scm")
+;(load "sigmoid.scm")
+;(load "gpu.scm")
 
 ;;; check if gpu is used
 
