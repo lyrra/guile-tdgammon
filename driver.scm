@@ -165,6 +165,7 @@
                     (randr number)
                     (rande boolean)
                     (seed number)))))
+    (set! *verbose* (get-conf conf 'verbose))
     (set! net (get-conf conf 'net))
     (let ((dir (get-conf conf 'dir)))
       (cond
@@ -255,7 +256,6 @@
   (let* ((episodes (get-conf conf 'episodes))
          (start-episode (or (get-conf conf 'start-episode) 0))
          (save (get-conf conf 'save))
-         (verbose (get-conf conf 'verbose))
          (thread (get-conf conf 'thread))
          (threadio (get-conf conf 'threadio))
          (measure (get-conf conf 'measure))
