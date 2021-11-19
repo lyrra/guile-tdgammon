@@ -273,7 +273,7 @@
       (if rlw (net-wdelta-clear (rl-net rlw)))
       (if rlb (net-wdelta-clear (rl-net rlb))))
 
-    (format #t "Tr:~s net: ~s~%" thread net)
+    ;(format #t "Tr:~s net: ~s~%" thread net)
     ; loop for each episode
     (do ((episode 0 (1+ episode)))
         ((and episodes (>= episode episodes)))
