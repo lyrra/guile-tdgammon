@@ -3,6 +3,7 @@
 
 (import (srfi srfi-1) (ice-9 match) (srfi srfi-8) (srfi srfi-9))
 (import (ffi cblas))
+(import (guile-gpu common))
 (import (guile-gpu gpu))
 (import (guile-gpu sigmoid))
 (load "common-lisp.scm")
@@ -14,12 +15,12 @@
 
 ;;; check if gpu is used
 
-(let ((gpu #f))
-  (do ((args (command-line) (cdr args)))
-      ((eq? args '()))
-    (if (string=? (car args) "--gpu")
-        (set! gpu #t)))
-  (if gpu (load "rocm-blas.scm")))
+
+(do ((args (command-line) (cdr args)))
+    ((eq? args '()))
+  (cond
+    ((string=? (car args) "--gpu")
+     (import (guile-gpu rocm-rocblas)))))
 
 ;;; Load ML/RL
 
