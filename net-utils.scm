@@ -1,5 +1,5 @@
 
-(define (randomize-network rlw rlb conf)
+(define (randomize-networks rlw rlb conf)
   (let ((randr (get-conf conf 'randr))
         (alpha (get-conf conf 'alpha)))
     (when randr

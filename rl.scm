@@ -89,7 +89,7 @@
     ; new net-output becomes old in next step
     (array-scopy! Vnew Vold)))
 
-(define (rl-policy-greedy-action agent cur-state fea-states)
+(define (rl-policy-greedy-action agent cur-state fea-states trans-fun)
   (let* ((net agent)
          (numout (netr-numout net))
          (vxi (net-vxi net)) ; lend networks-input array
@@ -97,7 +97,7 @@
          (points -999)
          (best-state #f))
     (loop-for state in fea-states do
-      (set-bg-input state vxi)
+      (trans-fun state vxi)
       (net-run net vxi)
       (let ((out (net-vyo net)))
         ; FIX: should we consider white(idx-0) > black(idx-1) ?

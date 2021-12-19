@@ -15,12 +15,12 @@
     (set-agent-ovxi! agent (make-typed-array 'f32 *unspecified* numin))
     agent))
 
-(define (agent-init agent bg)
+(define (agent-init agent bg trans-fun)
   (let* ((net (agent-net agent))
          (rl  (agent-rl agent))
          (vxi (net-vxi net))) ; lend networks-input array
     (rl-episode-clear rl)
-    (set-bg-input bg vxi)
+    (trans-fun bg vxi)
     (net-run net vxi)
     ; Set initial Vold
     (rl-init-step rl)))

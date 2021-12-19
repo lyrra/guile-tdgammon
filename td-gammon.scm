@@ -8,7 +8,7 @@
   (let ((paths (let ((lst (bg-find-all-states bg dices)))
                  (if (bg-ply bg)
                      lst (reverse lst)))))
-    (rl-policy-greedy-action net bg paths)))
+    (rl-policy-greedy-action net bg paths set-bg-input)))
 
 (define (human-select-action bg dices paths)
   (let ((action 0)
@@ -150,8 +150,8 @@
              (bg-w-bar bg) (bg-b-bar bg)
              (bg-w-rem bg) (bg-b-rem bg))
         (if *verbose* (bg-print-board bg))
-        (if (and rlw (= step 0)) (agent-init agentw bg))
-        (if (and rlb (= step 1)) (agent-init agentb bg))
+        (if (and rlw (= step 0)) (agent-init agentw bg set-bg-input))
+        (if (and rlb (= step 1)) (agent-init agentb bg set-bg-input))
         ; a <- pi(s)  ; set a to action given by policy for s
         ; Take action a, observe r and next state s'
         ;     new state, s', consists of bg2 and new dice-roll

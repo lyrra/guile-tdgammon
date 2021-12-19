@@ -284,7 +284,7 @@
                                   (+ (or start-episode 0) episode))
                           (+ (or start-episode 0) episode) net))
       ; randomize network
-      (randomize-network rlw rlb conf)
+      (randomize-networks rlw rlb conf)
       (normalize-networks rlw rlb)
       ; get initial action here
       ; Repeat for each step in episode:
