@@ -284,23 +284,11 @@
                                   (+ (or start-episode 0) episode))
                           (+ (or start-episode 0) episode) net))
       ; randomize network
-      (let ((randr (get-conf conf 'randr))
-            (alpha (get-conf conf 'alpha)))
-        (when randr
-          (cond
-           ((get-conf conf 'rande)
-            (let ((f (lambda (layer alpha w e)
-                       (+ w (* alpha e randr (- (random-uniform) .5))))))
-              (if rlw (net-weights-scale (rl-net rlw) f alpha))
-              (if rlb (net-weights-scale (rl-net rlb) f alpha))))
-           (else
-            (let ((f (lambda (layer alpha w)
-                       (+ w (* alpha randr (- (random-uniform) .5))))))
-              (if rlw (net-weights-scale (rl-net rlw) f alpha))
-              (if rlb (net-weights-scale (rl-net rlb) f alpha)))))))
+      (randomize-network rlw rlb conf)
+      (normalize-networks rlw rlb)
       ; get initial action here
       ; Repeat for each step in episode:
-      (match (tdgammon-run-episode rlw rlb agentw agentb #:log? (not threadio))
+      (match (game rlw rlb agentw agentb #:log? (not threadio))
         ((winner steps)
          (if winner
              (set! wwin (1+ wwin))

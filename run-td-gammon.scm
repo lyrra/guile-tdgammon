@@ -25,6 +25,7 @@
 ;;; Load ML/RL
 
 (load "net.scm")
+(load "net-utils.scm")
 (load "rl.scm")
 (load "agent.scm")
 (load "backgammon.scm")
