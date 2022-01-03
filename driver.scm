@@ -1,21 +1,4 @@
 
-(define (file-load-latest-net dir)
-  (let ((ds (opendir dir))
-        (name #f)
-        (episode #f))
-    (when (directory-stream? ds)
-      (do ((ent (readdir ds) (readdir ds)))
-          ((eof-object? ent))
-        (if (string-contains ent "net-")
-          (let* ((as (substring ent (+ 4 (string-contains ent "net-"))))
-                 (e (string->number (substring as 0 (string-contains as ".net")))))
-            (when (or (not episode)
-                      (> e episode))
-              (set! episode e)
-              (set! name ent)))))
-      (closedir ds))
-    (list name episode)))
-
 (define (net-input-output threadio net wwin bwin episodes totsteps start-time)
   ; send current network to master
   (array-set! threadio
@@ -283,9 +266,11 @@
           (file-write-net (format #f "~a-net-~a.net" thread
                                   (+ (or start-episode 0) episode))
                           (+ (or start-episode 0) episode) net))
-      ; randomize network
-      (randomize-networks rlw rlb conf)
-      (normalize-networks rlw rlb)
+      ; normalize and randomize network
+      (randomize-network rlw conf)
+      (randomize-network rlb conf)
+      (if rlw (normalize-network (rl-net rlw) 4))
+      (if rlb (normalize-network (rl-net rlb) 4))
       ; get initial action here
       ; Repeat for each step in episode:
       (match (game rlw rlb agentw agentb #:log? (not threadio))

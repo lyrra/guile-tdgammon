@@ -8,7 +8,6 @@
 (import (guile-gpu sigmoid))
 (import (guile-gpu mat))
 
-;(import (guile-ml common))
 (import (guile-ml ml))
 
 (load "common-lisp.scm")
