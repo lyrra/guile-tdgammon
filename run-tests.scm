@@ -52,6 +52,8 @@
                    test-backgammon-path-dual
                    test-backgammon-remove-pts
                    test-backgammon-bar
+                   test-backgammon-bar-white
+                   test-backgammon-bar-black
                    test-backgammon-td-run-out1 ; 1-neuron output
                    test-backgammon-td-run-out2 ; 2-neuron output
                    ))))))

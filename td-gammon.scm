@@ -143,10 +143,11 @@
     (do ((step 0 (1+ step)))
         (terminal-state)
       (let ((ply (bg-ply bg)))
-        (LLL "~a: ~a dices: ~s w/b-turn: ~a bar:[~a,~a] rem:[~a,~a]~%"
+        (LLL "~a: ~a/~a dices: ~s bar:[~a,~a] rem:[~a,~a]~%"
              step
+             (if (bg-ply bg) "WHITE" "BLACK")
              (if (eq? (agent-net (if ply agentw agentb)) #:human) "HUMAN" "COMPU")
-             dices (bg-ply bg)
+             dices
              (bg-w-bar bg) (bg-b-bar bg)
              (bg-w-rem bg) (bg-b-rem bg))
         (if *verbose* (bg-print-board bg))

@@ -48,18 +48,6 @@
         (array-set! bdst (array-ref bsrc i) i)))
     dst))
 
-(define (set-bg-input-pts arr vxi off)
-  (do ((p 0 (1+ p)))
-      ((>= p 24))
-    (let ((pcs (array-ref arr p)))
-      (array-set! vxi 0. (+ 0 (* p 4) off))
-      (array-set! vxi 0. (+ 1 (* p 4) off))
-      (array-set! vxi 0. (+ 2 (* p 4) off))
-      (array-set! vxi 0. (+ 3 (* p 4) off))
-      (if (> pcs 3) (array-set! vxi (/ (- pcs 3) 2) (+ 3 (* p 4) off)))
-      (if (> pcs 2) (array-set! vxi 1. (+ 2 (* p 4) off)))
-      (if (> pcs 1) (array-set! vxi 1. (+ 1 (* p 4) off)))
-      (if (> pcs 0) (array-set! vxi 1. (+ 0 (* p 4) off))))))
 
 (define (pts-ply bg)
   (let  ((arr (bg-w-pts bg))
@@ -109,13 +97,35 @@
 
 ; input features as specified by Tesauro's td-gammon
 (define (set-bg-input bg vxi)
+  (define (set-bg-input-pts-w arr vxi off)
+    (do ((p 0 (1+ p)))
+        ((>= p 24))
+      (let ((pcs (array-ref arr p)))
+        (array-set! vxi (if (> pcs 0) 1.              0.) (+ 0 off))
+        (array-set! vxi (if (> pcs 1) 1.              0.) (+ 1 off))
+        (array-set! vxi (if (> pcs 2) 1.              0.) (+ 2 off))
+        (array-set! vxi (if (> pcs 3) (/ (- pcs 3) 2) 0.) (+ 3 off))
+        (set! off (+ off 4)))))
+  (define (set-bg-input-pts-b arr vxi off)
+    (do ((p 23 (1- p)))
+        ((< p 0))
+      (let ((pcs (array-ref arr p)))
+        (array-set! vxi (if (> pcs 0) 1.              0.) (+ 0 off))
+        (array-set! vxi (if (> pcs 1) 1.              0.) (+ 1 off))
+        (array-set! vxi (if (> pcs 2) 1.              0.) (+ 2 off))
+        (array-set! vxi (if (> pcs 3) (/ (- pcs 3) 2) 0.) (+ 3 off))
+        (set! off (+ off 4)))))
   ; 192 inputs decode for white+black * 4input * 24 points
   (let ((n 0))
     (match (pts-ply bg)
       ((arr brr)
-       (set-bg-input-pts arr vxi n)
+       (if (bg-ply bg)
+         (set-bg-input-pts-w arr vxi n)
+         (set-bg-input-pts-b arr vxi n))
        (set! n (+ n (* 4 24)))
-       (set-bg-input-pts brr vxi n)
+       (if (bg-ply bg)
+         (set-bg-input-pts-w brr vxi n)
+         (set-bg-input-pts-b brr vxi n))
        (set! n (+ n (* 4 24)))
        (cond
         ((bg-ply bg)
@@ -152,7 +162,7 @@
          (> b w))))
 
 
-(define (bg-apply-move bg oldpos newpos newpcs ply)
+(define (bg-apply-move bg oldpos newpos ply)
   (match (pts-ply bg)
     ((arr brr)
      ; remove A-piece from old-position
@@ -227,10 +237,9 @@
             ((>= p 24))
           (let ((pcs (array-ref arr p)))
             (if (> pcs 0) ; point carries a piece
-                (let* ((newpos (+ p (* (car dices) dir)))
-                       (newpcs (1- pcs)))
+                (let ((newpos (+ p (* (car dices) dir))))
                   ; validate move
-                  (if (or (and (< newpos 0) ; whites-piece has moved outside of board
+                  (if (or (and (< newpos 0)  ; whites piece has moved outside of board
                                (let ((v #t)) ; ensure no points are outside home
                                  (do ((i 6 (1+ i)))
                                      ((>= i 24))
@@ -243,9 +252,9 @@
                                      (do ((i (1+ p) (1+ i)))
                                          ((>= i 24))
                                        (if (> (array-ref arr i) 0)
-                                           (set! good #t)))
+                                           (set! good #f)))
                                      good)))
-                          (and (> newpos 23) ; blacks-piece has moved outside of board
+                          (and (> newpos 23) ; blacks piece has moved outside of board
                                (let ((v #t)) ; ensure no points are outside home
                                  (do ((i 0 (1+ i)))
                                      ((>= i 18))
@@ -263,7 +272,7 @@
                           ; if piece lands on board, it mustn't be occupied
                           (and (>= newpos 0) (< newpos 24)
                                (< (array-ref brr newpos) 2))) ; max one opponent piece
-                    (let ((nbg (bg-apply-move (copy-bg bg) p newpos newpcs ply)))
+                    (let ((nbg (bg-apply-move (copy-bg bg) p newpos ply)))
                       (set! paths
                             (append paths
                                     (bg-fold-states nbg (cdr dices))))))))))
