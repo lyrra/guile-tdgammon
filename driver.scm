@@ -138,6 +138,9 @@
                     (verbose boolean)
                     (profiling boolean)
                     (threads number)
+                    (action-topn number)
+                    (action-white-topn number)
+                    (action-black-topn number)
                     (rl boolean)
                     (rl-lam number)
                     (rl-gam number)
@@ -273,7 +276,10 @@
       (if rlb (normalize-network (rl-net rlb) 4))
       ; get initial action here
       ; Repeat for each step in episode:
-      (match (game rlw rlb agentw agentb #:log? (not threadio))
+      (match (game rlw rlb agentw agentb #:log? (not threadio)
+                   #:action-topn (list (get-conf conf 'action-topn)
+                                       (get-conf conf 'action-white-topn)
+                                       (get-conf conf 'action-black-topn)))
         ((winner steps)
          (if winner
              (set! wwin (1+ wwin))

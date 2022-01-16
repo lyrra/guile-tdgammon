@@ -4,11 +4,14 @@
         (d2 (1+ (truncate (random-number 6)))))
     (list d1 d2)))
 
-(define (policy-take-action bg net dices)
+(define (policy-take-action bg net dices action-topn)
   (let ((paths (let ((lst (bg-find-all-states bg dices)))
                  (if (bg-ply bg)
                      lst (reverse lst)))))
-    (rl-policy-greedy-action net bg paths set-bg-input)))
+    (if action-topn
+        (rl-policy-greedy-action-topn net bg paths set-bg-input 
+                                      (1+ (random-number (1- action-topn))))
+        (rl-policy-greedy-action net bg paths set-bg-input))))
 
 (define (human-select-action bg dices paths)
   (let ((action 0)
@@ -123,17 +126,17 @@
       ((procedure? style) (style bg paths))))))
 
 
-(define (run-turn bg agent dices)
+(define (run-turn bg agent dices action-topn)
   (let ((net (agent-net agent)))
     (cond
      ((netr? net) ; player is controlled by artificial type of neural-network
-      (policy-take-action bg net dices))
+      (policy-take-action bg net dices action-topn))
      ((eq? net #:human) ; human type of neural-network controls player
       (human-take-action bg dices))
      (else
       (style-take-action bg dices net)))))
 
-(define* (tdgammon-run-episode rlw rlb agentw agentb #:key log?)
+(define* (tdgammon-run-episode rlw rlb agentw agentb #:key log? action-topn)
   (let ((bg (setup-bg)) ; set s to initial state of episode
         (terminal-state #f)
         (winner #f)
@@ -142,7 +145,8 @@
     (set-bg-ply! bg #t) ; whites turn
     (do ((step 0 (1+ step)))
         (terminal-state)
-      (let ((ply (bg-ply bg)))
+      (let ((ply (bg-ply bg))
+            (sel-action-topn #f))
         (LLL "~a: ~a/~a dices: ~s bar:[~a,~a] rem:[~a,~a]~%"
              step
              (if (bg-ply bg) "WHITE" "BLACK")
@@ -153,12 +157,18 @@
         (if *verbose* (bg-print-board bg))
         (if (and rlw (= step 0)) (agent-init agentw bg set-bg-input))
         (if (and rlb (= step 1)) (agent-init agentb bg set-bg-input))
+        (if action-topn
+            (match action-topn
+              ((all white black)
+               (if (bg-ply bg)
+                 (set! sel-action-topn (or all white))
+                 (set! sel-action-topn (or all black))))))
         ; a <- pi(s)  ; set a to action given by policy for s
         ; Take action a, observe r and next state s'
         ;     new state, s', consists of bg2 and new dice-roll
         ;     s =  { bg, dices }
         ;     s' = { best-bg, new-dice-roll }
-        (match (run-turn bg (if ply agentw agentb) dices)
+        (match (run-turn bg (if ply agentw agentb) dices sel-action-topn)
           (#f ; player can't move (example is all pieces are on the bar)
             ; since we have no moves to consider/evaluate, we just yield to the other player
            (assert (not (state-terminal? bg)))
