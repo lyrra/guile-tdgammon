@@ -6,9 +6,8 @@
 (import (srfi srfi-1) (ice-9 match) (srfi srfi-8) (srfi srfi-9))
 (import (guile-gpu gpu))
 (import (guile-gpu sigmoid))
-(import (guile-gpu mat))
-
-(import (guile-ml ml))
+(import (guile-machinelearning mat))
+(import (guile-machinelearning ml))
 
 (load "common-lisp.scm")
 (load "common.scm")

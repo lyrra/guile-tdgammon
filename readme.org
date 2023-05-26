@@ -7,7 +7,7 @@ Recreation of Tesauro 1992 Seminal work of [[td-gammon][https://en.wikipedia.org
 *** Prerequisite
 
   - clone [[guile-gpu][https://github.com/lyrra/guile-gpu.git]] which is an GPU/CPU abstraction library
-    after cloning, cd to lib/gpu and run cmake && make, for this to work you must have an working hipcc compiler.
+    (OPTIONAL IF GPU) after cloning, cd to lib/gpu and run cmake . && make, for this to work you must have an working hipcc compiler.
   - clone [[guile-machinelearning][git@github.com:lyrra/guile-machinelearning.git]] for common machine-learning auxiliary functions (CPU only).
   - clone [[guile-ffi-cblas][https://github.com/lloda/guile-ffi-cblas.git]] only needed if no GPU is used
   - edit env.sh to suit your environment:
@@ -17,19 +17,14 @@ Recreation of Tesauro 1992 Seminal work of [[td-gammon][https://en.wikipedia.org
 export LD_LIBRARY_PATH=/opt/rocm/lib
 
 # If using CPU, point out your blas-library: libblas.so, libatlas.so, /usr/lib/lapack/cygblas-0.dll etc
-#export GUILE_FFI_CBLAS_LIBNAME=/usr/lib/libblas.so
-#export GUILE_FFI_CBLAS_LIBNAME=/usr/lib/x86_64-linux-gnu/libopenblas.so
-#export GUILE_FFI_CBLAS_LIBNAME=/opt/rocm/rocblas/lib/librocblas.so.0.1.30300
-#export GUILE_FFI_CBLAS_LIBNAME=librocmblas_shim.so
 
-# If using gpu
 export GUILE_FFI_ROCM_LIBNAME=librocblas.so
 
 # Point to the guile-machinelearning C wrapper that calls your GPU
 export GUILE_FFI_NNGPU_LIBNAME=lib/gpu/libnn_gpu.so
 
 # If using CPU, path to cloned guile-ffi-cblas repository
-# and the directory where you cloned guile-ml and guile-gpu
+# and the directory where you cloned guile-machinelearning and guile-gpu
 GUILE_CODE_LOAD_PATH="-L $H/git/guile-ffi-cblas/mod -L $H/git"
 
 #+end_src

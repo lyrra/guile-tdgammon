@@ -5,8 +5,8 @@
 (import (ffi cblas))
 (import (guile-gpu gpu))
 (import (guile-gpu sigmoid))
-(import (guile-gpu mat))
-(import (guile-ml ml))
+(import (guile-machinelearning ml))
+(import (guile-machinelearning mat))
 (load "common-lisp.scm")
 (load "common.scm")
 
